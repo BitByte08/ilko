@@ -1122,6 +1122,12 @@ struct ProfileEditorView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(profile.wallpaperPath.isEmpty ? "프로필 추가" : "프로필 편집")
                 .font(.title2).fontWeight(.bold)
+                .onAppear {
+                    // 새 프로필 추가 시 현재 SSID 자동 입력
+                    if profile.ssid == nil, let ssid = currentSSID {
+                        profile.ssid = ssid
+                    }
+                }
 
             // 이름
             LabeledContent("이름") {
@@ -1140,8 +1146,8 @@ struct ProfileEditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 160)
 
-                    if let ssid = currentSSID {
-                        Button("현재 감지: \(ssid)") {
+                    if let ssid = currentSSID, profile.ssid != ssid {
+                        Button("현재 Wi-Fi로") {
                             profile.ssid = ssid
                         }
                         .font(.caption)
