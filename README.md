@@ -20,13 +20,19 @@ Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by
 
 ## 설치 (소스 빌드)
 
-**요구사항:** macOS 14+, Xcode, CMake
+**요구사항:** macOS 14+, Xcode Command Line Tools
 
 ```bash
 git clone https://github.com/winshine0326/ilko.git
 cd ilko
-mkdir -p build && cd build
-cmake .. && make -j$(sysctl -n hw.ncpu)
+make run
+```
+
+Xcode 없이 빌드만 하려면:
+
+```bash
+make build
+# 결과물: .build/Build/Products/Debug/LiveWallpaper.app
 ```
 
 ### Gatekeeper 우회

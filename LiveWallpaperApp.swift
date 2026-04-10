@@ -36,78 +36,71 @@ struct LiveWallpaperApp: App {
 
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var statusItem: NSStatusItem!
     var window: NSWindow!
-    
+
     let engine = sharedEngine
 
+    // ilko 핵심 컨트롤러
+    let profileManager = ProfileManager()
+    let locationWatcher = LocationWatcher()
+    private var switchController: SwitchController!
+    private var menuBarController: MenuBarController!
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        
+
         NSApp.setActivationPolicy(.accessory)
 
-        
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "play.desktopcomputer", accessibilityDescription: "Live Wallpaper")
-        }
+        // 컨트롤러 초기화 (순서 중요: watcher → switch → menubar)
+        switchController = SwitchController(
+            profileManager: profileManager,
+            locationWatcher: locationWatcher
+        )
+        menuBarController = MenuBarController(
+            profileManager: profileManager,
+            switchController: switchController,
+            showWindow: { [weak self] in self?.showWindow() }
+        )
 
-        
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: NSLocalizedString("Show window", comment: ""), action: #selector(showWindow), keyEquivalent: "s"))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("Hide window", comment: ""), action: #selector(hideWindow), keyEquivalent: "h"))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: NSLocalizedString("Quit", comment: ""), action: #selector(quit), keyEquivalent: "q"))
-        statusItem.menu = menu
+        // SSID 폴링 시작
+        locationWatcher.start()
 
-        // Create main window with ContentView
+        // 메인 윈도우 (환경 객체 주입)
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView,.borderless],
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
         )
-        //hide titlebar
-        //window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.toolbarStyle = .unified
-        
         window.center()
-        window.contentView = NSHostingView(rootView: ContentView())
-        window.title = "LiveWallpaper"
+        window.contentView = NSHostingView(
+            rootView: ContentView()
+                .environmentObject(profileManager)
+                .environmentObject(locationWatcher)
+                .environmentObject(switchController)
+        )
+        window.title = "ilko"
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
-        
+
         if !hasAccessibilityAccess() {
             requestAccessibilityAccess()
         }
 
-        
         if !isLoginItemEnabled() {
             setLoginItem(enabled: true)
         }
-        
-
-        
     }
 
-    // Show the config window
     @objc func showWindow() {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        
     }
 
-    // Hide the window without quitting the app
     @objc func hideWindow() {
         window.orderOut(nil)
-    }
-
-    // Quit the app completely
-    @objc func quit() {
-        
-        engine?.terminateApplication()
-        NSApp.terminate(nil)
     }
 }
 

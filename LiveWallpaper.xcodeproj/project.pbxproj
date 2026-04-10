@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		048ABDDD2F4C1652001393B0 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 048ABDDC2F4C1652001393B0 /* AppIcon.icon */; };
 		04E055422EEA794C00F90A44 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 04E055412EEA794C00F90A44 /* AVFoundation.framework */; };
 		04E055442EEA795200F90A44 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 04E055432EEA795200F90A44 /* CoreMedia.framework */; };
 		04E055462EEA795900F90A44 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 04E055452EEA795900F90A44 /* CoreVideo.framework */; };
@@ -56,6 +55,11 @@
 		04E057922EEAB43200F90A44 /* scanner.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 04E057622EEAB43200F90A44 /* scanner.cpp */; };
 		04E057932EEAB43200F90A44 /* directives.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 04E057452EEAB43200F90A44 /* directives.cpp */; };
 		04F816E02EEBE3FB00CFB473 /* DisplayObjc.mm in Sources */ = {isa = PBXBuildFile; fileRef = 04F816DF2EEBE3FB00CFB473 /* DisplayObjc.mm */; };
+		B1000002FFFF00000000BB02 /* LocationWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001FFFF00000000BB01 /* LocationWatcher.swift */; };
+		B1000004FFFF00000000BB04 /* ProfileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000003FFFF00000000BB03 /* ProfileManager.swift */; };
+		B1000006FFFF00000000BB06 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000005FFFF00000000BB05 /* SwitchController.swift */; };
+		B1000008FFFF00000000BB08 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000007FFFF00000000BB07 /* MenuBarController.swift */; };
+		B100000AFFFF00000000BB0A /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000009FFFF00000000BB09 /* CoreWLAN.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -78,7 +82,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		048ABDDC2F4C1652001393B0 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		04E0070A2EEA738C00F90A44 /* LiveWallpaper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiveWallpaper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		04E055412EEA794C00F90A44 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		04E055432EEA795200F90A44 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
@@ -271,6 +274,11 @@
 		04E058962EEAB54E00F90A44 /* yaml-cpp.pc.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = "yaml-cpp.pc.in"; sourceTree = "<group>"; };
 		04F816DE2EEBE3FB00CFB473 /* DisplayObjc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DisplayObjc.h; sourceTree = SOURCE_ROOT; };
 		04F816DF2EEBE3FB00CFB473 /* DisplayObjc.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DisplayObjc.mm; sourceTree = SOURCE_ROOT; };
+		B1000001FFFF00000000BB01 /* LocationWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationWatcher.swift; sourceTree = SOURCE_ROOT; };
+		B1000003FFFF00000000BB03 /* ProfileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileManager.swift; sourceTree = SOURCE_ROOT; };
+		B1000005FFFF00000000BB05 /* SwitchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchController.swift; sourceTree = SOURCE_ROOT; };
+		B1000007FFFF00000000BB07 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = SOURCE_ROOT; };
+		B1000009FFFF00000000BB09 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -299,6 +307,7 @@
 				04E055F32EEA8D6500F90A44 /* IOKit.framework in Frameworks */,
 				04E055F22EEA8D5C00F90A44 /* AVFoundation.framework in Frameworks */,
 				04E055F12EEA8D5700F90A44 /* Cocoa.framework in Frameworks */,
+				B100000AFFFF00000000BB0A /* CoreWLAN.framework in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -311,7 +320,6 @@
 				04E055E92EEA8D2C00F90A44 /* wallpaperdaemon */,
 				04E054BD2EEA76F600F90A44 /* Frameworks */,
 				04E0070B2EEA738C00F90A44 /* Products */,
-				048ABDDC2F4C1652001393B0 /* AppIcon.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -353,6 +361,10 @@
 				04E056F02EEAB3EE00F90A44 /* WallpaperEngine.mm */,
 				04F816DE2EEBE3FB00CFB473 /* DisplayObjc.h */,
 				04F816DF2EEBE3FB00CFB473 /* DisplayObjc.mm */,
+				B1000001FFFF00000000BB01 /* LocationWatcher.swift */,
+				B1000003FFFF00000000BB03 /* ProfileManager.swift */,
+				B1000005FFFF00000000BB05 /* SwitchController.swift */,
+				B1000007FFFF00000000BB07 /* MenuBarController.swift */,
 				04E057732EEAB43200F90A44 /* src */,
 			);
 			path = LiveWallpaper;
@@ -706,7 +718,6 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				04E057382EEAB3EE00F90A44 /* Assets.xcassets in Resources */,
-				048ABDDD2F4C1652001393B0 /* AppIcon.icon in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -752,6 +763,10 @@
 				04E0570B2EEAB3EE00F90A44 /* WallpaperEngine.mm in Sources */,
 				04E057192EEAB3EE00F90A44 /* ContentView.swift in Sources */,
 				04E0571C2EEAB3EE00F90A44 /* SaveSystem.mm in Sources */,
+				B1000002FFFF00000000BB02 /* LocationWatcher.swift in Sources */,
+				B1000004FFFF00000000BB04 /* ProfileManager.swift in Sources */,
+				B1000006FFFF00000000BB06 /* SwitchController.swift in Sources */,
+				B1000008FFFF00000000BB08 /* MenuBarController.swift in Sources */,
 			);
 		};
 		04E055E42EEA8D2C00F90A44 /* Sources */ = {

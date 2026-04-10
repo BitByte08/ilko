@@ -490,11 +490,15 @@ struct DisplayButton: View {
 // MARK: - Settings View
 struct SettingsView: View {
     @ObservedObject var viewModel: WallpaperViewModel
+    @EnvironmentObject var profileManager: ProfileManager
+    @EnvironmentObject var locationWatcher: LocationWatcher
     @Environment(\.dismiss) private var dismiss
     @State private var showFolderPicker = false
     @AppStorage(UserDefaultsKeys.scaleMode) var scaleMode: Int = 0
     @State private var localMinutes: Int = 60
     @State private var isShowingView = true
+    @State private var showProfileEditor = false
+    @State private var editingProfile: Profile?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -781,12 +785,56 @@ struct SettingsView: View {
                             viewModel.resetUserData()
                         }
                     }
+
+                    Divider()
+
+                    // MARK: 프로필 관리
+                    HStack {
+                        Text("프로필 관리")
+                            .font(.headline)
+                        Spacer()
+                        Button {
+                            editingProfile = Profile(id: UUID(), name: "", ssid: nil, wallpaperPath: "")
+                            showProfileEditor = true
+                        } label: {
+                            Label("추가", systemImage: "plus")
+                        }
+                    }
+
+                    ForEach(profileManager.profiles) { profile in
+                        ProfileRowView(
+                            profile: profile,
+                            currentSSID: locationWatcher.currentSSID,
+                            onEdit: {
+                                editingProfile = profile
+                                showProfileEditor = true
+                            },
+                            onDelete: { profileManager.delete(id: profile.id) }
+                        )
+                    }
                 }
                 .padding()
             }
         }
         .padding()
         .frame(width: 600, height: 500)
+        .sheet(isPresented: $showProfileEditor) {
+            if let profile = editingProfile {
+                ProfileEditorView(
+                    profile: profile,
+                    currentSSID: locationWatcher.currentSSID,
+                    onSave: { updated in
+                        if profileManager.profiles.contains(where: { $0.id == updated.id }) {
+                            profileManager.update(updated)
+                        } else {
+                            profileManager.add(updated)
+                        }
+                        showProfileEditor = false
+                    },
+                    onCancel: { showProfileEditor = false }
+                )
+            }
+        }
         .background(.ultraThinMaterial)
         .compatibleGlass(cornerRadius: 1)
 
@@ -1042,10 +1090,114 @@ class WallpaperViewModel: ObservableObject {
     }
 }
 
+// MARK: - Profile Row
+struct ProfileRowView: View {
+    let profile: Profile
+    let currentSSID: String?
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.name).fontWeight(.medium)
+                Text(profile.ssid.map { "SSID: \($0)" } ?? "기본 프로필")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("편집", action: onEdit)
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Profile Editor Sheet
+struct ProfileEditorView: View {
+    @State var profile: Profile
+    let currentSSID: String?
+    let onSave: (Profile) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(profile.wallpaperPath.isEmpty ? "프로필 추가" : "프로필 편집")
+                .font(.title2).fontWeight(.bold)
+
+            // 이름
+            LabeledContent("이름") {
+                TextField("홈, 카페, 회사…", text: $profile.name)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+            }
+
+            // SSID
+            LabeledContent("Wi-Fi SSID") {
+                HStack {
+                    TextField("없음 = 기본 프로필", text: Binding(
+                        get: { profile.ssid ?? "" },
+                        set: { profile.ssid = $0.isEmpty ? nil : $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 160)
+
+                    if let ssid = currentSSID {
+                        Button("현재 감지: \(ssid)") {
+                            profile.ssid = ssid
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+
+            // 월페이퍼 파일
+            LabeledContent("월페이퍼") {
+                HStack {
+                    Text(profile.wallpaperPath.isEmpty ? "파일 없음" : URL(fileURLWithPath: profile.wallpaperPath).lastPathComponent)
+                        .foregroundStyle(profile.wallpaperPath.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(width: 160, alignment: .leading)
+
+                    Button("선택") { pickFile() }
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("취소", action: onCancel)
+                Button("저장") { onSave(profile) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(profile.name.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+    }
+
+    private func pickFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.movie, .jpeg, .png]
+        if panel.runModal() == .OK, let url = panel.url {
+            profile.wallpaperPath = url.path
+        }
+    }
+}
+
 #Preview {
     ContentView()
 }
 
 #Preview {
     SettingsView(viewModel: WallpaperViewModel())
+        .environmentObject(ProfileManager())
+        .environmentObject(LocationWatcher())
 }
