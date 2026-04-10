@@ -78,7 +78,7 @@ class MenuBarController {
         menu.addItem(settingsItem)
 
         let quitItem = NSMenuItem(
-            title: NSLocalizedString("Quit", comment: ""),
+            title: "종료",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )

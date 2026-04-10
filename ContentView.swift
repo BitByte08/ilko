@@ -107,37 +107,35 @@ class LanguageManager: ObservableObject {
 
 // MARK: - Localization
 enum L {
-    static let selectWallpaperFolder = NSLocalizedString("📁", comment: "")
-    static let generating = NSLocalizedString("Generating...", comment: "")
-    static let settings = NSLocalizedString("Settings", comment: "")
-    static let wallpaperFolder = NSLocalizedString("Wallpaper folder", comment: "")
-    static let selectFolderEmoji = NSLocalizedString("📁", comment: "")
-    static let showInFinder = NSLocalizedString("📂", comment: "")
-    static let videoScalingMode = NSLocalizedString("Video scaling mode", comment: "")
-    static let scaleFill = NSLocalizedString("Scale fill", comment: "")
-    static let scaleFit = NSLocalizedString("Scale fit", comment: "")
-    static let scaleStretch = NSLocalizedString("Scale stretch", comment: "")
-    static let scaleCenter = NSLocalizedString("Scale center", comment: "")
-    static let scaleHeightFill = NSLocalizedString("Scale height fill", comment: "")
-    static let randomOnStartup = NSLocalizedString("Random on startup", comment: "")
-    static let randomOnLid = NSLocalizedString("Random on lid", comment: "")
-    static let pauseWhenActive = NSLocalizedString("Pause when active", comment: "")
-    static let videoVolume = NSLocalizedString("Video volume", comment: "")
-    static let optimizeCodecs = NSLocalizedString("Optimize codecs", comment: "")
-    static let optimize = NSLocalizedString("Optimize", comment: "")
-    static let clearCache = NSLocalizedString("Clear cache", comment: "")
-    static let clearCacheButton = NSLocalizedString("Clear cache", comment: "")
-    static let resetUserData = NSLocalizedString("Reset userdata", comment: "")
-    static let reset = NSLocalizedString("Reset", comment: "")
-    static let selectFolderTitle = NSLocalizedString("Select folder title", comment: "")
-    static let choose = NSLocalizedString("Choose", comment: "")
-    static let selectFolderOrType = NSLocalizedString("Select folder or type", comment: "")
-    static let wallpaperRotation = NSLocalizedString("Wallpaper rotation", comment: "")
-    static let rotationType = NSLocalizedString("Wallpaper rotation type", comment: "")
-    static let vinttageBar = NSLocalizedString(
-        "Vignette bar (Reapply the wallpaper after change)", comment: "")
-
-    static let rotationDelay = NSLocalizedString("Wallpaper rotation delay", comment: "")
+    static let selectWallpaperFolder = "📁"
+    static let generating = "생성 중..."
+    static let settings = "설정"
+    static let wallpaperFolder = "월페이퍼 폴더"
+    static let selectFolderEmoji = "📁"
+    static let showInFinder = "📂"
+    static let videoScalingMode = "비디오 크기 조절"
+    static let scaleFill = "채우기"
+    static let scaleFit = "맞추기"
+    static let scaleStretch = "늘리기"
+    static let scaleCenter = "가운데"
+    static let scaleHeightFill = "높이 채우기"
+    static let randomOnStartup = "시작 시 랜덤 월페이퍼"
+    static let randomOnLid = "화면 켤 때 랜덤 월페이퍼"
+    static let pauseWhenActive = "앱 포커스 시 일시정지"
+    static let videoVolume = "비디오 볼륨"
+    static let optimizeCodecs = "코덱 최적화"
+    static let optimize = "최적화"
+    static let clearCache = "캐시 삭제"
+    static let clearCacheButton = "삭제"
+    static let resetUserData = "데이터 초기화"
+    static let reset = "초기화"
+    static let selectFolderTitle = "폴더 선택"
+    static let choose = "선택"
+    static let selectFolderOrType = "경로를 입력하거나 선택하세요"
+    static let wallpaperRotation = "월페이퍼 자동 전환"
+    static let rotationType = "전환 방식"
+    static let vinttageBar = "비네트 바 (변경 후 월페이퍼 재적용)"
+    static let rotationDelay = "전환 간격"
 }
 
 // MARK: - UserDefaults Keys
@@ -553,7 +551,7 @@ struct SettingsView: View {
                     Divider()
 
                     // Language Selection
-                    SettingRow(title: NSLocalizedString("App language", comment: "")) {
+                    SettingRow(title: "앱 언어") {
                         Picker(
                             "",
                             selection: Binding(
@@ -561,17 +559,15 @@ struct SettingsView: View {
                                 set: { newValue in
                                     LanguageManager.shared.currentLanguage = newValue
                                     let alert = NSAlert()
-                                    alert.messageText = NSLocalizedString(
-                                        "language_changed_title", comment: "")
-                                    alert.informativeText = NSLocalizedString(
-                                        "language_changed_message", comment: "")
+                                    alert.messageText = "언어 변경됨"
+                                    alert.informativeText = "앱을 재시작하면 변경 사항이 적용됩니다."
                                     alert.alertStyle = .informational
-                                    alert.addButton(withTitle: NSLocalizedString("ok", comment: ""))
+                                    alert.addButton(withTitle: "확인")
                                     alert.runModal()
                                 }
                             )
                         ) {
-                            Text(NSLocalizedString("system_language", comment: "")).tag("auto")
+                            Text("시스템 언어").tag("auto")
                             Text("简体中文").tag("zh-Hans")
                             Text("English").tag("en")
                         }
@@ -729,8 +725,8 @@ struct SettingsView: View {
                                     }
                                 )
                             ) {
-                                Text("Sequential").tag(RotationType.sequential)
-                                Text("Random").tag(RotationType.random)
+                                Text("순차").tag(RotationType.sequential)
+                                Text("랜덤").tag(RotationType.random)
                             }
                             .onChange(of: engine.rotationType) {
                                 if engine.rotationType == RotationType.sequential {
@@ -743,7 +739,7 @@ struct SettingsView: View {
                             .frame(width: 150)
                         }
                     } else {
-                        Text("Engine Loading...")  // Or EmptyView()
+                        Text("엔진 로딩 중...")
                     }
 
                     Divider()
