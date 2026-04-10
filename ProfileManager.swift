@@ -18,12 +18,36 @@ class ProfileManager: ObservableObject {
 
     private let configURL: URL
 
+    /// ilko 전용 월페이퍼 저장 디렉터리.
+    /// LiveWallpaper의 WallpaperFolder와 완전히 분리된다.
+    static let wallpapersDirectory: URL = {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        return support.appendingPathComponent("ilko/Wallpapers")
+    }()
+
+    /// 파일을 ilko 월페이퍼 디렉터리로 복사한다. 이미 같은 경로면 그대로 반환.
+    static func importWallpaper(from source: URL) throws -> URL {
+        try FileManager.default.createDirectory(
+            at: wallpapersDirectory, withIntermediateDirectories: true)
+        let dest = wallpapersDirectory.appendingPathComponent(source.lastPathComponent)
+        if dest.path == source.path { return dest }
+        if FileManager.default.fileExists(atPath: dest.path) {
+            try FileManager.default.removeItem(at: dest)
+        }
+        try FileManager.default.copyItem(at: source, to: dest)
+        return dest
+    }
+
     init() {
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
         let dir = support.appendingPathComponent("ilko")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(
+            at: ProfileManager.wallpapersDirectory, withIntermediateDirectories: true)
         configURL = dir.appendingPathComponent("config.json")
 
         load()

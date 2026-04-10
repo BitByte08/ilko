@@ -64,6 +64,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // SSID 폴링 시작
         locationWatcher.start()
 
+        // ilko 전용 월페이퍼 폴더를 WallpaperEngine에 등록
+        // (LiveWallpaper의 기존 WallpaperFolder와 분리)
+        let ilkoFolder = ProfileManager.wallpapersDirectory.path
+        sharedEngine?.selectFolder(ilkoFolder)
+
         // 메인 윈도우 (환경 객체 주입)
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),

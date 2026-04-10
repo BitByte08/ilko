@@ -1186,7 +1186,12 @@ struct ProfileEditorView: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.movie, .jpeg, .png]
-        if panel.runModal() == .OK, let url = panel.url {
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let dest = try ProfileManager.importWallpaper(from: url)
+            profile.wallpaperPath = dest.path
+        } catch {
+            // 복사 실패 시 원본 경로 그대로 사용
             profile.wallpaperPath = url.path
         }
     }
