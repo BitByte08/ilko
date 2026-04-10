@@ -1,94 +1,59 @@
-> [!NOTE]
-> ## I’ll be Transforming Objective C++ UI's to SwiftUI. But the ```daemon``` won't change.
+# ilko
 
-# LiveWallpaper App for MacOS 14+
+> 위치 기반 자동 월페이퍼 전환 — 집에선 덕질, 밖에선 일코
 
-**Languages:** English | [简体中文](README.zh-Hans.md)
+Wi-Fi SSID를 감지해 장소에 맞는 월페이퍼로 자동 전환하는 macOS 앱.  
+집에선 좋아하는 캐릭터 라이브 월페이퍼, 카페·회사에선 조용한 기본 배경으로.
 
-![Roller](./asset/livewall.png)
+Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill, licensed under GPL v3.
 
-This is an open-source live wallpaper application for MacOS 14+
+---
 
-## Install using brew
+## 주요 기능
 
-Run this on terminal `brew tap thusvill/livewallpaper && brew install --cask livewallpaper`
+- **SSID 기반 자동 전환** — 30초마다 Wi-Fi를 체크, 변경 감지 시 즉시 전환
+- **프로필 관리** — SSID별로 월페이퍼 프로필 등록 (SSID 없음 = 기본 프로필)
+- **라이브 + 정적 월페이퍼** — `.mp4`, `.mov` 루프 재생 / `.jpg`, `.png` 정적 이미지
+- **메뉴바 상주** — 현재 프로필 확인, 수동 전환, 로그인 시 자동 시작
 
-## Installation(Compile from source)
-- macOS 14+
-- git
-- Xcode
-- Cmake
-  
-Run this: `git clone https://github.com/thusvill/LiveWallpaperMacOS.git && cd LiveWallpaperMacOS && mkdir -p build && cd build && cmake .. && make -j$(sysctl -n hw.ncpu)`
+---
 
+## 설치 (소스 빌드)
 
-## Guide for DMG Installation
+**요구사항:** macOS 14+, Xcode, CMake
 
-> [!IMPORTANT]
-> ## Fix “LiveWallpaper.app” is corrupted and cannot be opened. It is recommended that you move the object to the recycle bin.
-> After you install the app in Application folder you have to bypass Gatekeeper to run this since I don't want to pay apple for opensource apps.
-> 
-> This will solve the occupation issue
-> 
-> `xattr -d com.apple.quarantine /Applications/LiveWallpaper.app` 
+```bash
+git clone https://github.com/winshine0326/ilko.git
+cd ilko
+mkdir -p build && cd build
+cmake .. && make -j$(sysctl -n hw.ncpu)
+```
 
-Click the "OpenInFinder" button and it'll open a folder, you can place wallpapers in it.
+### Gatekeeper 우회
 
-> [!NOTE]
-> Make sure the folder selected doesn't include spaces.
->
-> No dots should be contained on the file name exept the dot for extension!
-> 
-> ## Eg:
-> 
->  - file.1920x1080.mp4 ❌ ('.'s > 1)
-> 
->  - file-1920x1080.mp4 ✅ ('.'s = 1)
+서명 없는 앱이므로 설치 후 아래 명령 실행:
 
-> [!NOTE]
-> Currently support for `.mp4` and `.mov`
+```bash
+xattr -d com.apple.quarantine /Applications/ilko.app
+```
 
-> https://github.com/user-attachments/assets/3d82e07d-b6b9-4a7d-b6de-5dd05dff3128
+---
 
-## Gallery
+## 사용법
 
-> ![Application](./asset/application.png)
+1. 앱 실행 → 메뉴바 아이콘 확인
+2. **프로필 추가** — SSID와 월페이퍼 파일 지정
+3. 백그라운드에서 자동 전환 시작
 
-> ## This is a static image, currently LiveWallpaper doesn't support videos on the lock screen.
-> ![lockscreen](./asset/lockscreen.png)
+> **파일명 주의:** 비디오 파일명에 `.`이 2개 이상이면 인식 불가.  
+> `rem-loop.mp4` ✅ / `rem.1920x1080.mp4` ❌
 
-> ![settings](./asset/settings.png)
+---
 
-> https://github.com/user-attachments/assets/36fb169e-b7cc-4489-9459-dab07c8dd2c6
+## 크레딧
 
+Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill — GPL v3.
 
-
-
-> # Performance
-> ![p1](./asset/preformance1.png)
-> ![p2](./asset/preformance2.png)
-> ![p3](./asset/preformance3.png)
-> # Multiple Display Support
-
-> https://github.com/user-attachments/assets/9575873c-79e6-4eba-a7a5-9408b2cc4ed0
-
-
-<!-- ## Gallery
-> <img width="185" height="134" alt="Screenshot 2025-11-30 at 1 52 01 PM" src="https://github.com/user-attachments/assets/0c91fb29-e729-485b-8f93-7080aed68881" />
-> <img width="185" height="134" alt="Screenshot 2025-11-30 at 1 51 53 PM" src="https://github.com/user-attachments/assets/7848d2fd-8cc4-4271-a4c0-2868bdf00422" />
- 
-
-
-
-> ![Screenshot 2025-05-15 at 6 46 35 AM](https://github.com/user-attachments/assets/167b0c08-454f-4d53-9e65-8798aed6459f)
-
-> <img width="2560" height="1600" alt="Screenshot 2025-11-30 at 1 52 34 PM" src="https://github.com/user-attachments/assets/79a24ed8-cc5a-4246-87d0-9c93e04766f2" />
-
-> <img width="2560" height="1600" alt="Screenshot 2025-11-30 at 1 54 35 PM" src="https://github.com/user-attachments/assets/10466b02-77d5-4814-9fb7-a865e62a41ba" />
-
- 
-
-> https://github.com/user-attachments/assets/748c7078-1f99-4182-876f-08aa59d2bc63 -->
- 
+---
 
 For licensing details, see [LICENSE](LICENSE).
