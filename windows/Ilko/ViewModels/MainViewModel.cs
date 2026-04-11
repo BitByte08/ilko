@@ -48,6 +48,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ProfileManager ProfileManager => _profileManager;
     public LocationWatcher LocationWatcher => _locationWatcher;
     public SwitchController SwitchController => _switchController;
+    public WallpaperEngine Engine => _engine;
 
     public MainViewModel()
     {

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using Ilko.Models;
@@ -8,11 +9,29 @@ using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace Ilko.Views;
 
+/// <summary>모니터 항목 — MonitorList에 바인딩되는 뷰모델.</summary>
+public class MonitorItem
+{
+    public MonitorInfo Monitor { get; }
+    public string FriendlyName => Monitor.FriendlyName;
+    public string? CurrentPath { get; set; }
+
+    public MonitorItem(MonitorInfo monitor, string? path)
+    {
+        Monitor = monitor;
+        CurrentPath = path;
+    }
+}
+
 public partial class ProfileEditorWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly Profile _profile;
     private readonly bool _isNew;
+    private readonly List<MonitorItem> _monitorItems = [];
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     public ProfileEditorWindow(MainViewModel vm, Profile? existing = null)
     {
@@ -27,17 +46,33 @@ public partial class ProfileEditorWindow : Window
 
         InitializeComponent();
 
+        Loaded += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            int pref = 2;
+            DwmSetWindowAttribute(hwnd, 33, ref pref, sizeof(int));
+        };
+
         TitleText.Text = _isNew ? "프로필 추가" : "프로필 편집";
         NameBox.Text = _profile.Name;
         MacText.Text = _profile.GatewayMAC ?? "없음 = 기본 프로필";
-        UpdateWallpaperDisplay();
+        UpdateDefaultWallpaperDisplay();
 
-        // 기본 프로필이면 네트워크 변경 비활성화
+        // 기본 프로필이면 이름/네트워크 변경 불가
         if (_profile.GatewayMAC == null && !_isNew)
         {
-            UseCurrentBtn.IsEnabled = false;
             NameBox.IsEnabled = false;
+            UseCurrentBtn.IsEnabled = false;
         }
+
+        // 모니터 목록 구성
+        var monitors = _vm.Engine.GetMonitors();
+        foreach (var m in monitors)
+        {
+            _profile.MonitorWallpapers.TryGetValue(m.DevicePath, out var path);
+            _monitorItems.Add(new MonitorItem(m, path));
+        }
+        MonitorList.ItemsSource = _monitorItems;
     }
 
     private void OnUseCurrentNetwork(object sender, RoutedEventArgs e)
@@ -55,63 +90,71 @@ public partial class ProfileEditorWindow : Window
         }
     }
 
-    private void OnPickFile(object sender, RoutedEventArgs e)
+    private void OnPickMonitorFile(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        if (sender is FrameworkElement fe && fe.Tag is MonitorItem item)
         {
-            Title = "월페이퍼 파일 선택",
-            Filter = "이미지/동영상|*.jpg;*.jpeg;*.png;*.bmp;*.mp4;*.mov|모든 파일|*.*"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            var imported = _vm.ImportWallpaper(dialog.FileName);
-            _profile.WallpaperPath = imported ?? dialog.FileName;
-            UpdateWallpaperDisplay();
+            var path = PickImageFile();
+            if (path == null) return;
+            item.CurrentPath = _vm.ImportWallpaper(path) ?? path;
+            // 리스트 새로고침
+            MonitorList.ItemsSource = null;
+            MonitorList.ItemsSource = _monitorItems;
+            UpdatePreview(item.CurrentPath);
         }
     }
 
-    private void UpdateWallpaperDisplay()
+    private void OnPickDefaultFile(object sender, RoutedEventArgs e)
     {
-        var path = _profile.WallpaperPath;
-        WallpaperText.Text = string.IsNullOrEmpty(path) ? "파일 없음" : Path.GetFileName(path);
+        var path = PickImageFile();
+        if (path == null) return;
+        _profile.WallpaperPath = _vm.ImportWallpaper(path) ?? path;
+        UpdateDefaultWallpaperDisplay();
+        UpdatePreview(_profile.WallpaperPath);
+    }
 
-        // 이미지 미리보기
-        if (!string.IsNullOrEmpty(path) && File.Exists(path))
+    private string? PickImageFile()
+    {
+        var dlg = new OpenFileDialog
         {
-            var ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ext is ".jpg" or ".jpeg" or ".png" or ".bmp")
-            {
-                try
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(path);
-                    bitmap.DecodePixelWidth = 800;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    PreviewImage.Source = bitmap;
-                }
-                catch
-                {
-                    PreviewImage.Source = null;
-                }
-            }
-            else
-            {
-                PreviewImage.Source = null;
-            }
-        }
-        else
+            Title = "월페이퍼 파일 선택",
+            Filter = "이미지|*.jpg;*.jpeg;*.png;*.bmp|모든 파일|*.*"
+        };
+        return dlg.ShowDialog() == true ? dlg.FileName : null;
+    }
+
+    private void UpdateDefaultWallpaperDisplay()
+    {
+        DefaultWallpaperText.Text = string.IsNullOrEmpty(_profile.WallpaperPath)
+            ? "선택 없음"
+            : Path.GetFileName(_profile.WallpaperPath);
+        DefaultWallpaperText.Foreground = string.IsNullOrEmpty(_profile.WallpaperPath)
+            ? (System.Windows.Media.Brush)FindResource("TextDimBrush")
+            : (System.Windows.Media.Brush)FindResource("TextBrush");
+    }
+
+    private void UpdatePreview(string? path)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".bmp")) return;
+        try
         {
-            PreviewImage.Source = null;
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri(path);
+            bmp.DecodePixelWidth = 800;
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            PreviewImage.Source = bmp;
+            PreviewBorder.Visibility = Visibility.Visible;
         }
+        catch { }
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
         _profile.Name = NameBox.Text.Trim();
-
         if (string.IsNullOrEmpty(_profile.Name))
         {
             MessageBox.Show("프로필 이름을 입력해주세요.", "알림",
@@ -119,9 +162,20 @@ public partial class ProfileEditorWindow : Window
             return;
         }
 
-        if (string.IsNullOrEmpty(_profile.WallpaperPath))
+        // 모니터별 경로 저장
+        _profile.MonitorWallpapers.Clear();
+        foreach (var item in _monitorItems)
         {
-            MessageBox.Show("월페이퍼 파일을 선택해주세요.", "알림",
+            if (!string.IsNullOrEmpty(item.CurrentPath))
+                _profile.MonitorWallpapers[item.Monitor.DevicePath] = item.CurrentPath;
+        }
+
+        // 최소 하나의 월페이퍼가 있어야 함
+        bool hasAny = !string.IsNullOrEmpty(_profile.WallpaperPath)
+                      || _profile.MonitorWallpapers.Count > 0;
+        if (!hasAny)
+        {
+            MessageBox.Show("월페이퍼를 하나 이상 선택해주세요.", "알림",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

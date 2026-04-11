@@ -1,70 +1,122 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using Ilko.Models;
 
 namespace Ilko.Services;
 
 /// <summary>
-/// Windows 월페이퍼 설정 엔진.
-/// - 정적 이미지: SystemParametersInfo WIN32 API
-/// - 동영상: 추후 WorkerW 방식으로 확장 가능 (현재는 첫 프레임을 정적 배경으로 설정)
-///
-/// macOS 버전의 WallpaperEngine + SwitchController 기능을 합친 형태.
+/// IDesktopWallpaper COM 인터페이스를 통해 모니터별 배경화면을 설정한다.
 /// </summary>
 public class WallpaperEngine
 {
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern int SystemParametersInfo(uint uiAction, uint uiParam, string pvParam, uint fWinIni);
+    // ── COM 인터페이스 ──────────────────────────────────────────
+    [ComImport, Guid("C2CF3110-460E-4fc1-B9D0-8A1C0C9CC4BD")]
+    [ClassInterface(ClassInterfaceType.None)]
+    private class DesktopWallpaperClass { }
 
-    private const uint SPI_SETDESKWALLPAPER = 0x0014;
-    private const uint SPIF_UPDATEINIFILE = 0x01;
-    private const uint SPIF_SENDCHANGE = 0x02;
-
-    /// <summary>
-    /// 정적 이미지(jpg, png, bmp)를 바탕화면으로 설정.
-    /// </summary>
-    public bool SetWallpaper(string imagePath)
+    [ComImport]
+    [Guid("B92B56A9-8B55-4E14-9A89-0199BBB6F93B")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IDesktopWallpaper
     {
-        if (!File.Exists(imagePath))
+        // vtable[3]
+        void SetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string? monitorID,
+                          [MarshalAs(UnmanagedType.LPWStr)] string wallpaper);
+        // vtable[4]
+        [return: MarshalAs(UnmanagedType.LPWStr)]
+        string GetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string? monitorID);
+        // vtable[5]
+        [return: MarshalAs(UnmanagedType.LPWStr)]
+        string GetMonitorDevicePathAt(uint monitorIndex);
+        // vtable[6]
+        uint GetMonitorDevicePathCount();
+    }
+
+    // ── 공개 API ────────────────────────────────────────────────
+
+    /// <summary>현재 연결된 모니터 목록 반환.</summary>
+    public List<MonitorInfo> GetMonitors()
+    {
+        try
         {
-            Debug.WriteLine($"[WallpaperEngine] 파일 없음: {imagePath}");
-            return false;
+            var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
+            var count = dw.GetMonitorDevicePathCount();
+            var result = new List<MonitorInfo>();
+            for (uint i = 0; i < count; i++)
+            {
+                result.Add(new MonitorInfo
+                {
+                    Index = (int)i,
+                    DevicePath = dw.GetMonitorDevicePathAt(i),
+                    FriendlyName = $"모니터 {i + 1}"
+                });
+            }
+            return result;
         }
-
-        var ext = Path.GetExtension(imagePath).ToLowerInvariant();
-
-        // Windows는 BMP를 기본 지원. JPG/PNG도 최신 Windows에서 직접 지원됨.
-        if (ext is not (".jpg" and not ".jpeg" and not ".png" and not ".bmp"))
+        catch (Exception ex)
         {
-            // 지원되는 확장자
+            Debug.WriteLine($"[WallpaperEngine] GetMonitors 실패: {ex.Message}");
+            return [];
         }
-
-        var result = SystemParametersInfo(
-            SPI_SETDESKWALLPAPER,
-            0,
-            imagePath,
-            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
-
-        if (result != 0)
-        {
-            Debug.WriteLine($"[WallpaperEngine] 월페이퍼 설정 완료: {imagePath}");
-            return true;
-        }
-
-        Debug.WriteLine($"[WallpaperEngine] 월페이퍼 설정 실패 (error: {Marshal.GetLastWin32Error()})");
-        return false;
     }
 
     /// <summary>
-    /// 동영상 월페이퍼 적용. 현재는 mp4/mov의 첫 프레임을 추출하여 정적 배경으로 설정.
-    /// TODO: WorkerW 방식의 라이브 월페이퍼 구현
+    /// 프로필의 MonitorWallpapers를 적용.
+    /// MonitorWallpapers가 비어있으면 WallpaperPath를 전체에 적용.
     /// </summary>
-    public bool SetVideoWallpaper(string videoPath)
+    public void ApplyProfile(Profile profile)
     {
-        Debug.WriteLine($"[WallpaperEngine] 동영상 월페이퍼 요청: {videoPath}");
-        // 동영상 → 정적 배경 (추후 확장 포인트)
-        // 현재는 동영상 파일이 있다는 것만 기록하고, 정적 이미지 기능만 지원
-        Debug.WriteLine("[WallpaperEngine] ⚠️ 동영상 라이브 월페이퍼는 아직 미구현 — 정적 이미지만 지원됩니다.");
-        return false;
+        if (profile.MonitorWallpapers.Count > 0)
+        {
+            var monitors = GetMonitors();
+            foreach (var monitor in monitors)
+            {
+                var path = profile.MonitorWallpapers.GetValueOrDefault(monitor.DevicePath)
+                           ?? profile.WallpaperPath;
+                if (!string.IsNullOrEmpty(path))
+                    SetForMonitor(monitor.DevicePath, path);
+            }
+        }
+        else if (!string.IsNullOrEmpty(profile.WallpaperPath))
+        {
+            SetForAll(profile.WallpaperPath);
+        }
+    }
+
+    /// <summary>특정 모니터에 이미지 설정.</summary>
+    public bool SetForMonitor(string monitorDevicePath, string imagePath)
+    {
+        if (!File.Exists(imagePath)) return false;
+        try
+        {
+            var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
+            dw.SetWallpaper(monitorDevicePath, imagePath);
+            Debug.WriteLine($"[WallpaperEngine] {Path.GetFileName(imagePath)} → {monitorDevicePath[..Math.Min(30, monitorDevicePath.Length)]}...");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WallpaperEngine] SetForMonitor 실패: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>전체 모니터에 같은 이미지 설정 (null monitorID = all).</summary>
+    public bool SetForAll(string imagePath)
+    {
+        if (!File.Exists(imagePath)) return false;
+        try
+        {
+            var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
+            dw.SetWallpaper(null, imagePath);
+            Debug.WriteLine($"[WallpaperEngine] 전체 모니터: {Path.GetFileName(imagePath)}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WallpaperEngine] SetForAll 실패: {ex.Message}");
+            return false;
+        }
     }
 }
