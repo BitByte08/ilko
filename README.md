@@ -5,8 +5,10 @@
 
 [YOUTUBE : ILKO(일코) - 씹덕들의 일코를 위한 네트워크 기반 월페이퍼 자동 전환 서비스](https://youtu.be/oWZAOatEMrA)
 
+(영상 내에서는 월페이퍼가 이미지처럼 보이는데, 실제로는 mp4로 재생 됩니다. 영상 녹화 시에는 사진취급 되네요.)
+
 Wi-Fi 게이트웨이를 감지해 장소에 맞는 월페이퍼로 자동 전환하는 macOS 앱.  
-집에선 좋아하는 캐릭터 라이브 월페이퍼, 카페·회사에선 조용한 기본 배경으로.
+집에선 좋아하는 캐릭터 라이브 월페이퍼, 카페·회사에선 조용한 기본 배경으로
 
 Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill, licensed under GPL v3.
 
