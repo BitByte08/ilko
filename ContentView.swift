@@ -891,6 +891,8 @@ struct ProfileEditorView: View {
     let onSave: (Profile) -> Void
     let onCancel: () -> Void
 
+    @State private var thumbnailImage: NSImage?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(profile.wallpaperPath.isEmpty ? "프로필 추가" : "프로필 편집")
@@ -947,6 +949,17 @@ struct ProfileEditorView: View {
                 }
             }
 
+            // 미리보기
+            if let img = thumbnailImage {
+                Image(nsImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            }
+
             Divider()
 
             HStack {
@@ -959,6 +972,29 @@ struct ProfileEditorView: View {
         }
         .padding(24)
         .frame(width: 460)
+        .task(id: profile.wallpaperPath) {
+            thumbnailImage = await loadThumbnail(path: profile.wallpaperPath)
+        }
+    }
+
+    private func loadThumbnail(path: String) async -> NSImage? {
+        guard !path.isEmpty else { return nil }
+        let ext = (path as NSString).pathExtension.lowercased()
+        switch ext {
+        case "jpg", "jpeg", "png":
+            return NSImage(contentsOfFile: path)
+        case "mp4", "mov":
+            return await Task.detached(priority: .utility) {
+                let asset = AVAsset(url: URL(fileURLWithPath: path))
+                let gen = AVAssetImageGenerator(asset: asset)
+                gen.appliesPreferredTrackTransform = true
+                gen.maximumSize = CGSize(width: 800, height: 500)
+                guard let cgImage = try? gen.copyCGImage(at: .zero, actualTime: nil) else { return nil }
+                return NSImage(cgImage: cgImage, size: .zero)
+            }.value
+        default:
+            return nil
+        }
     }
 
     private func pickFile() {
