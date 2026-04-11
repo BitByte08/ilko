@@ -15,9 +15,14 @@ struct VideoItem: Identifiable {
     }
 }
 
+// WallpaperEngine은 upstream ObjC 클래스이므로 Swift에서 Sendable 선언을 추가합니다.
+// 실제 스레드 안전성은 WallpaperEngine 내부 구현(dispatch queue)이 보장합니다.
+extension WallpaperEngine: @unchecked Sendable {}
+
 // MARK: - Wallpaper View Model
+// @MainActor 격리가 모든 접근을 메인 스레드로 직렬화하므로 @unchecked Sendable이 안전합니다.
 @MainActor
-class WallpaperViewModel: ObservableObject {
+class WallpaperViewModel: ObservableObject, @unchecked Sendable {
 
     @Published var videos: [VideoItem] = []
     @Published var folderPath: String = ""
@@ -27,8 +32,7 @@ class WallpaperViewModel: ObservableObject {
     @Published var volume: Double = 50.0
     @Published var vinttageBar: Bool = true
 
-    private var currentReloadID = UUID()
-    private let reloadIDLock = NSLock()
+    private var reloadTask: Task<Void, Never>?
     private let defaults = UserDefaults.standard
     let engine: WallpaperEngine
 
@@ -41,6 +45,7 @@ class WallpaperViewModel: ObservableObject {
     }
 
     func invalidate() {
+        reloadTask?.cancel()
         engine.removeNotifications()
     }
 
@@ -66,45 +71,41 @@ class WallpaperViewModel: ObservableObject {
             return e == "mp4" || e == "mov"
         }
 
-        let reloadID = UUID()
-        reloadIDLock.lock()
-        currentReloadID = reloadID
-        reloadIDLock.unlock()
+        // @MainActor 격리 값을 detached task 진입 전에 스냅샷
+        let folderSnapshot = folderPath
+        let engine = self.engine
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-
-            let newVideos: [VideoItem] = videoFiles.map { f in
-                let full = (self.folderPath as NSString).appendingPathComponent(f)
+        // 진행 중인 이전 리로드 취소 후 새로 시작
+        reloadTask?.cancel()
+        reloadTask = Task.detached(priority: .userInitiated) { [weak self] in
+            var newVideos: [VideoItem] = []
+            for f in videoFiles {
+                guard !Task.isCancelled else { return }
+                let full = (folderSnapshot as NSString).appendingPathComponent(f)
                 let base = (f as NSString).deletingPathExtension
                 let thumbPath =
-                    (self.engine.thumbnailCachePath() as NSString?)?.appendingPathComponent(
+                    (engine.thumbnailCachePath() as NSString?)?.appendingPathComponent(
                         "\(base).png") ?? ""
-
-                var item = VideoItem(filename: f, path: full, thumbnailPath: thumbPath)
-                self.engine.videoQualityBadge(for: URL(fileURLWithPath: full)) { badge in
-                    item.quality = badge
+                // ObjC 콜백 → async/await 변환: continuation만 캡처하므로 Sendable 안전
+                let badge: String? = await withCheckedContinuation { continuation in
+                    engine.videoQualityBadge(for: URL(fileURLWithPath: full)) { badge in
+                        continuation.resume(returning: badge)
+                    }
                 }
-                return item
+                newVideos.append(VideoItem(filename: f, path: full, thumbnailPath: thumbPath, quality: badge))
             }
 
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+            guard !Task.isCancelled else { return }
 
-                self.reloadIDLock.lock()
-                let isValid = reloadID == self.currentReloadID
-                self.reloadIDLock.unlock()
-
-                if isValid {
-                    self.videos = newVideos
-
-                    let missingThumbnails = newVideos.filter { $0.loadThumbnail() == nil }
-                    if !missingThumbnails.isEmpty {
-                        NSLog(
-                            "Found \(missingThumbnails.count) videos without thumbnails, generating..."
-                        )
-                        self.engine.generateThumbnails()
-                    }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.videos = newVideos
+                let missingThumbnails = newVideos.filter { $0.loadThumbnail() == nil }
+                if !missingThumbnails.isEmpty {
+                    NSLog(
+                        "Found \(missingThumbnails.count) videos without thumbnails, generating..."
+                    )
+                    self.engine.generateThumbnails()
                 }
             }
         }
