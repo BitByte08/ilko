@@ -429,7 +429,13 @@ struct ProfilesView: View {
                                 editingProfile = profile
                                 showProfileEditor = true
                             },
-                            onDelete: { profileManager.delete(id: profile.id) }
+                            onDelete: {
+                                let isActive = switchController.activeProfile?.id == profile.id
+                                profileManager.delete(id: profile.id)
+                                if isActive, let fallback = profileManager.profiles.first(where: { $0.gatewayMAC == nil }) {
+                                    switchController.apply(fallback)
+                                }
+                            }
                         )
                     }
                 }
@@ -950,7 +956,7 @@ struct ProfileEditorView: View {
                 Button("취소", action: onCancel)
                 Button("저장") { onSave(profile) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(profile.name.isEmpty)
+                    .disabled(profile.name.isEmpty || profile.wallpaperPath.isEmpty)
             }
         }
         .padding(24)
