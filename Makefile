@@ -5,7 +5,7 @@ CONFIG_RELEASE = Release
 BUILD_DIR      = $(PWD)/.build
 APP            = $(BUILD_DIR)/Build/Products/$(CONFIG)/ILKO.app
 APP_RELEASE    = $(BUILD_DIR)/Build/Products/$(CONFIG_RELEASE)/ILKO.app
-VERSION       ?= 2.3
+VERSION       ?= 1.0.0
 DMG_NAME       = ILKO-$(VERSION).dmg
 DMG_DIR        = $(PWD)/dist
 
