@@ -15,6 +15,7 @@ class SwitchController: ObservableObject {
         self.locationWatcher = locationWatcher
 
         cancellable = locationWatcher.$currentGatewayMAC
+            .dropFirst()  // 초기값 nil 무시 — LocationWatcher가 실제 체크한 후에만 반응
             .receive(on: DispatchQueue.main)
             .sink { [weak self] mac in
                 Task { @MainActor [weak self] in self?.onNetworkChange(mac) }
@@ -27,12 +28,13 @@ class SwitchController: ObservableObject {
     }
 
     private func onNetworkChange(_ mac: String?) {
-        print("[SwitchController] 네트워크 변경 감지: \(mac ?? "nil")")
+        let allProfiles = profileManager.profiles.map { "\($0.name)[\($0.gatewayMAC ?? "기본")]" }.joined(separator: ", ")
+        print("[SwitchController] 네트워크 변경 감지: \(mac ?? "nil") | 등록 프로필: \(allProfiles)")
         guard let profile = profileManager.profileFor(gatewayMAC: mac) else {
-            print("[SwitchController] ❌ 매칭 프로필 없음 (profiles: \(profileManager.profiles.map { "\($0.name)=\($0.gatewayMAC ?? "nil")" }))")
+            print("[SwitchController] ❌ 매칭 프로필 없음")
             return
         }
-        print("[SwitchController] 매칭 프로필: \(profile.name) (wallpaper: \(profile.wallpaperPath.isEmpty ? "없음" : profile.wallpaperPath))")
+        print("[SwitchController] ✅ 매칭: \(profile.name) (MAC: \(profile.gatewayMAC ?? "기본"), wallpaper: \(profile.wallpaperPath.isEmpty ? "없음" : profile.wallpaperPath))")
         guard profile.id != activeProfile?.id else {
             print("[SwitchController] 이미 활성 프로필, 건너뜀")
             return

@@ -790,7 +790,7 @@ struct SettingsView: View {
                             .font(.headline)
                         Spacer()
                         Button {
-                            editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentNetworkID(), wallpaperPath: "")
+                            editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentGatewayMAC, wallpaperPath: "")
                             showProfileEditor = true
                         } label: {
                             Label("추가", systemImage: "plus")

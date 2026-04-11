@@ -112,12 +112,15 @@ func isLoginItemEnabled() -> Bool {
 
 
 func setLoginItem(enabled: Bool) {
-    guard let bundleId = Bundle.main.bundleIdentifier else { return }
-
-    if SMLoginItemSetEnabled(bundleId as CFString, enabled) {
+    do {
+        if enabled {
+            try SMAppService.mainApp.register()
+        } else {
+            try SMAppService.mainApp.unregister()
+        }
         UserDefaults.standard.set(enabled, forKey: UserDefaultsKeys.launchAtLogin)
-    } else {
-        print("❌ Failed to update login items")
+    } catch {
+        print("❌ Failed to update login items: \(error.localizedDescription)")
     }
 }
 
