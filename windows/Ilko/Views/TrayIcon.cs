@@ -2,6 +2,8 @@ using System.Drawing;
 using System.Windows.Forms;
 using Ilko.Models;
 using Ilko.ViewModels;
+using Font = System.Drawing.Font;
+using FontStyle = System.Drawing.FontStyle;
 
 namespace Ilko.Views;
 
@@ -48,7 +50,7 @@ public class TrayIcon : IDisposable
         // 현재 활성 프로필명
         var header = new ToolStripLabel(_vm.ActiveProfile?.Name ?? "프로필 없음")
         {
-            Font = new Font(SystemFonts.MenuFont, System.Drawing.FontStyle.Bold)
+            Font = new Font(SystemFonts.MenuFont ?? SystemFonts.DefaultFont, FontStyle.Bold)
         };
         menu.Items.Add(header);
         menu.Items.Add(new ToolStripSeparator());

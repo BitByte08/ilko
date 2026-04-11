@@ -3,7 +3,8 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Ilko.Models;
 using Ilko.ViewModels;
-using Microsoft.Win32;
+using MessageBox = System.Windows.MessageBox;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace Ilko.Views;
 

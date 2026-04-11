@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using Ilko.Models;
 using Ilko.ViewModels;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Ilko.Views;
 
