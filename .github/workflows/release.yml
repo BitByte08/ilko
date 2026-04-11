@@ -4,6 +4,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -19,3 +22,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/ILKO-*.dmg
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
