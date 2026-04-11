@@ -110,6 +110,38 @@
                     </Border>
                 </DockPanel>
 
+                <!-- 동영상 배경 -->
+                <TextBlock FontSize="11" Foreground="{StaticResource TextDimBrush}"
+                           Margin="0,0,0,5">
+                    <Run Text="동영상 배경화면"/>
+                    <Run Text="  (선택 사항 — 앱 실행 중 재생, 종료 시 위 이미지로 폴백)"
+                         Foreground="{StaticResource TextDimBrush}" FontSize="10"/>
+                </TextBlock>
+                <DockPanel Margin="0,0,0,6">
+                    <Button Style="{StaticResource IconBtn}"
+                            ToolTip="파일 선택" DockPanel.Dock="Right"
+                            Click="OnPickVideoFile" Margin="8,0,0,0"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock Text="&#xE8A7;" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="15" Foreground="{StaticResource TextDimBrush}"/>
+                    </Button>
+                    <Button Style="{StaticResource IconBtn}"
+                            ToolTip="제거" DockPanel.Dock="Right"
+                            Click="OnClearVideoFile"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="13" Foreground="{StaticResource DangerBrush}"/>
+                    </Button>
+                    <Border Background="{StaticResource Surface2Brush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="10,7">
+                        <TextBlock x:Name="VideoPathText" FontSize="12"
+                                   Foreground="{StaticResource TextDimBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                </DockPanel>
+                <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,16"/>
+
                 <!-- 정렬 방식 -->
                 <TextBlock Text="정렬 방식" FontSize="11"
                            Foreground="{StaticResource TextDimBrush}" Margin="0,0,0,8"/>

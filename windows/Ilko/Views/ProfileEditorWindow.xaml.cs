@@ -75,6 +75,9 @@ public partial class ProfileEditorWindow : Window
         }
         MonitorList.ItemsSource = _monitorItems;
 
+        // 동영상 경로 초기값
+        UpdateVideoDisplay();
+
         // 정렬 방식 라디오 버튼 구성
         BuildPositionRadios();
 
@@ -173,6 +176,38 @@ public partial class ProfileEditorWindow : Window
         _profile.WallpaperPath = _vm.ImportWallpaper(path) ?? path;
         UpdateDefaultWallpaperDisplay();
         UpdatePreview(_profile.WallpaperPath);
+    }
+
+    private void OnPickVideoFile(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "동영상 파일 선택",
+            Filter = "동영상|*.mp4;*.mov;*.avi;*.mkv;*.wmv|모든 파일|*.*"
+        };
+        if (dlg.ShowDialog() != true) return;
+        _profile.VideoPath = dlg.FileName;
+        UpdateVideoDisplay();
+    }
+
+    private void OnClearVideoFile(object sender, RoutedEventArgs e)
+    {
+        _profile.VideoPath = null;
+        UpdateVideoDisplay();
+    }
+
+    private void UpdateVideoDisplay()
+    {
+        if (string.IsNullOrEmpty(_profile.VideoPath))
+        {
+            VideoPathText.Text = "선택 없음";
+            VideoPathText.Foreground = (System.Windows.Media.Brush)FindResource("TextDimBrush");
+        }
+        else
+        {
+            VideoPathText.Text = System.IO.Path.GetFileName(_profile.VideoPath);
+            VideoPathText.Foreground = (System.Windows.Media.Brush)FindResource("TextBrush");
+        }
     }
 
     private string? PickImageFile()

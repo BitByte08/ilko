@@ -37,6 +37,14 @@ public class Profile
     [JsonPropertyName("offsetY")]
     public int OffsetY { get; set; } = 0;
 
+    /// <summary>
+    /// 동영상 배경화면 경로 (MP4 등).
+    /// 설정 시 앱 실행 중에는 WorkerW 레이어에서 영상이 재생되고,
+    /// 앱 종료 후에는 WallpaperPath 정적 이미지가 폴백으로 유지됨.
+    /// </summary>
+    [JsonPropertyName("videoPath")]
+    public string? VideoPath { get; set; }
+
     public Profile Clone() => new()
     {
         Id = Id,
@@ -47,5 +55,6 @@ public class Profile
         Position = Position,
         OffsetX = OffsetX,
         OffsetY = OffsetY,
+        VideoPath = VideoPath,
     };
 }

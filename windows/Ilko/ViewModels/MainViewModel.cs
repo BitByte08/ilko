@@ -100,6 +100,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         _locationWatcher.Stop();
         _locationWatcher.Dispose();
+        _engine.Dispose(); // 영상 중단 (정적 폴백은 이미 설정돼 있음)
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
