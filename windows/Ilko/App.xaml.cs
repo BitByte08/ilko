@@ -14,14 +14,30 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        _viewModel = new MainViewModel();
-        _mainWindow = new MainWindow(_viewModel);
+        var crashLog = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "ilko_crash.log");
 
-        // 시스템 트레이 아이콘 설정
-        _trayIcon = new TrayIcon(_viewModel, ShowMainWindow);
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+            System.IO.File.WriteAllText(crashLog, ex.ExceptionObject?.ToString() ?? "unknown");
 
-        // 첫 실행 시 메인 윈도우 표시
-        ShowMainWindow();
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            System.IO.File.WriteAllText(crashLog, ex.Exception?.ToString() ?? "unknown");
+            ex.Handled = true;
+        };
+
+        try
+        {
+            _viewModel = new MainViewModel();
+            _mainWindow = new MainWindow(_viewModel);
+            _trayIcon = new TrayIcon(_viewModel, ShowMainWindow);
+            ShowMainWindow();
+        }
+        catch (Exception ex)
+        {
+            System.IO.File.WriteAllText(crashLog, ex.ToString());
+            Shutdown();
+        }
     }
 
     private void ShowMainWindow()

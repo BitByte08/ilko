@@ -1,12 +1,14 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using RadioButton = System.Windows.Controls.RadioButton;
 using Ilko.Models;
 using Ilko.ViewModels;
 using MessageBox = System.Windows.MessageBox;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+
 
 namespace Ilko.Views;
 
@@ -16,6 +18,9 @@ public class MonitorItem
     public MonitorInfo Monitor { get; }
     public string FriendlyName => Monitor.FriendlyName;
     public string? CurrentPath { get; set; }
+    public string FileName => string.IsNullOrEmpty(CurrentPath)
+        ? "선택 없음"
+        : System.IO.Path.GetFileName(CurrentPath);
 
     public MonitorItem(MonitorInfo monitor, string? path)
     {
@@ -57,7 +62,7 @@ public partial class ProfileEditorWindow : Window
         TitleText.Text = _isNew ? "프로필 추가" : "프로필 편집";
         NameBox.Text = _profile.Name;
         MacText.Text = _profile.GatewayMAC ?? "없음 = 기본 프로필";
-        UpdateDefaultWallpaperDisplay();
+        UpdateFileDisplay();
 
         // 기본 프로필이면 이름/네트워크 변경 불가
         if (_profile.GatewayMAC == null && !_isNew)
@@ -75,8 +80,8 @@ public partial class ProfileEditorWindow : Window
         }
         MonitorList.ItemsSource = _monitorItems;
 
-        // 동영상 경로 초기값
-        UpdateVideoDisplay();
+        // 미리보기 초기값
+        UpdatePreview();
 
         // 정렬 방식 라디오 버튼 구성
         BuildPositionRadios();
@@ -160,93 +165,159 @@ public partial class ProfileEditorWindow : Window
     {
         if (sender is FrameworkElement fe && fe.Tag is MonitorItem item)
         {
-            var path = PickImageFile();
-            if (path == null) return;
-            item.CurrentPath = _vm.ImportWallpaper(path) ?? path;
+            var dlg = new OpenFileDialog
+            {
+                Title = "모니터 배경화면 선택",
+                Filter = "이미지|*.jpg;*.jpeg;*.png;*.bmp|모든 파일|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+            item.CurrentPath = _vm.ImportWallpaper(dlg.FileName) ?? dlg.FileName;
             MonitorList.ItemsSource = null;
             MonitorList.ItemsSource = _monitorItems;
-            UpdatePreview(item.CurrentPath);
         }
     }
 
-    private void OnPickDefaultFile(object sender, RoutedEventArgs e)
-    {
-        var path = PickImageFile();
-        if (path == null) return;
-        _profile.WallpaperPath = _vm.ImportWallpaper(path) ?? path;
-        UpdateDefaultWallpaperDisplay();
-        UpdatePreview(_profile.WallpaperPath);
-    }
-
-    private void OnPickVideoFile(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// 이미지와 동영상을 하나의 선택창에서 처리.
+    /// 확장자에 따라 WallpaperPath 또는 VideoPath에 저장.
+    /// </summary>
+    private void OnPickFile(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
         {
-            Title = "동영상 파일 선택",
-            Filter = "동영상|*.mp4;*.mov;*.avi;*.mkv;*.wmv|모든 파일|*.*"
+            Title = "배경화면 파일 선택",
+            Filter = "이미지/동영상|*.jpg;*.jpeg;*.png;*.bmp;*.mp4;*.mov;*.avi;*.mkv;*.wmv|모든 파일|*.*"
         };
         if (dlg.ShowDialog() != true) return;
-        _profile.VideoPath = dlg.FileName;
-        UpdateVideoDisplay();
-    }
 
-    private void OnClearVideoFile(object sender, RoutedEventArgs e)
-    {
-        _profile.VideoPath = null;
-        UpdateVideoDisplay();
-    }
+        var ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+        bool isVideo = ext is ".mp4" or ".mov" or ".avi" or ".mkv" or ".wmv";
 
-    private void UpdateVideoDisplay()
-    {
-        if (string.IsNullOrEmpty(_profile.VideoPath))
+        if (isVideo)
         {
-            VideoPathText.Text = "선택 없음";
-            VideoPathText.Foreground = (System.Windows.Media.Brush)FindResource("TextDimBrush");
+            _profile.VideoPath = dlg.FileName;
+            _profile.WallpaperPath = "";  // 동영상 선택 시 이미지 초기화
         }
         else
         {
-            VideoPathText.Text = System.IO.Path.GetFileName(_profile.VideoPath);
-            VideoPathText.Foreground = (System.Windows.Media.Brush)FindResource("TextBrush");
+            _profile.WallpaperPath = _vm.ImportWallpaper(dlg.FileName) ?? dlg.FileName;
+            _profile.VideoPath = null;    // 이미지 선택 시 동영상 초기화
+        }
+
+        UpdateFileDisplay();
+        UpdatePreview();
+    }
+
+    private void OnClearFile(object sender, RoutedEventArgs e)
+    {
+        _profile.WallpaperPath = "";
+        _profile.VideoPath = null;
+        UpdateFileDisplay();
+        UpdatePreview();
+    }
+
+    private void UpdateFileDisplay()
+    {
+        bool hasVideo = !string.IsNullOrEmpty(_profile.VideoPath);
+        bool hasImage = !string.IsNullOrEmpty(_profile.WallpaperPath);
+
+        if (hasVideo)
+        {
+            FilePathText.Text = Path.GetFileName(_profile.VideoPath);
+            FilePathText.Foreground = (System.Windows.Media.Brush)FindResource("TextBrush");
+        }
+        else if (hasImage)
+        {
+            FilePathText.Text = Path.GetFileName(_profile.WallpaperPath);
+            FilePathText.Foreground = (System.Windows.Media.Brush)FindResource("TextBrush");
+        }
+        else
+        {
+            FilePathText.Text = "선택 없음";
+            FilePathText.Foreground = (System.Windows.Media.Brush)FindResource("TextDimBrush");
         }
     }
 
-    private string? PickImageFile()
+    private void UpdatePreview()
     {
-        var dlg = new OpenFileDialog
+        bool hasVideo = !string.IsNullOrEmpty(_profile.VideoPath);
+        bool hasImage = !string.IsNullOrEmpty(_profile.WallpaperPath)
+                        && File.Exists(_profile.WallpaperPath);
+
+        if (hasVideo)
         {
-            Title = "월페이퍼 파일 선택",
-            Filter = "이미지|*.jpg;*.jpeg;*.png;*.bmp|모든 파일|*.*"
-        };
-        return dlg.ShowDialog() == true ? dlg.FileName : null;
-    }
+            // Windows Shell 썸네일 (File Explorer와 동일)
+            PreviewImage.Source = GetShellThumbnail(_profile.VideoPath!, 640, 360);
+            VideoBadge.Visibility = Visibility.Visible;
+            PreviewBorder.Visibility = Visibility.Visible;
+            return;
+        }
 
-    private void UpdateDefaultWallpaperDisplay()
-    {
-        DefaultWallpaperText.Text = string.IsNullOrEmpty(_profile.WallpaperPath)
-            ? "선택 없음"
-            : Path.GetFileName(_profile.WallpaperPath);
-        DefaultWallpaperText.Foreground = string.IsNullOrEmpty(_profile.WallpaperPath)
-            ? (System.Windows.Media.Brush)FindResource("TextDimBrush")
-            : (System.Windows.Media.Brush)FindResource("TextBrush");
-    }
+        VideoBadge.Visibility = Visibility.Collapsed;
 
-    private void UpdatePreview(string? path)
-    {
-        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ext is not (".jpg" or ".jpeg" or ".png" or ".bmp")) return;
+        if (!hasImage) { PreviewBorder.Visibility = Visibility.Collapsed; return; }
+
+        var ext = Path.GetExtension(_profile.WallpaperPath).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".bmp"))
+        {
+            PreviewBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         try
         {
             var bmp = new BitmapImage();
             bmp.BeginInit();
-            bmp.UriSource = new Uri(path);
+            bmp.UriSource = new Uri(_profile.WallpaperPath);
             bmp.DecodePixelWidth = 800;
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.EndInit();
             PreviewImage.Source = bmp;
             PreviewBorder.Visibility = Visibility.Visible;
         }
-        catch { }
+        catch { PreviewBorder.Visibility = Visibility.Collapsed; }
+    }
+
+
+    // ── Shell 썸네일 ──────────────────────────────────────────
+
+    [ComImport, Guid("BCC18B79-BA16-442F-80C4-8A59C30C463B"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellItemImageFactory
+    {
+        [PreserveSig] int GetImage([In] ShellSize size, [In] uint flags, out IntPtr phbm);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ShellSize { public int cx, cy; }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    private static extern void SHCreateItemFromParsingName(
+        string pszPath, IntPtr pbc, ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface, IidParameterIndex = 2)] out object ppv);
+
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr hObject);
+
+    private static System.Windows.Media.ImageSource? GetShellThumbnail(string path, int w, int h)
+    {
+        try
+        {
+            var iid = typeof(IShellItemImageFactory).GUID;
+            SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out var ppv);
+            if (ppv is not IShellItemImageFactory factory) return null;
+
+            if (factory.GetImage(new ShellSize { cx = w, cy = h }, 0, out var hBitmap) != 0)
+                return null;
+
+            try
+            {
+                return Imaging.CreateBitmapSourceFromHBitmap(
+                    hBitmap, IntPtr.Zero, Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions());
+            }
+            finally { DeleteObject(hBitmap); }
+        }
+        catch { return null; }
     }
 
     // ── 저장 / 취소 ───────────────────────────────────────────
@@ -273,10 +344,13 @@ public partial class ProfileEditorWindow : Window
         _profile.OffsetX = (int)SliderX.Value;
         _profile.OffsetY = (int)SliderY.Value;
 
-        // 최소 하나의 월페이퍼가 있어야 함
-        if (string.IsNullOrEmpty(_profile.WallpaperPath) && _profile.MonitorWallpapers.Count == 0)
+        // 배경화면(이미지/동영상) 또는 모니터별 설정 중 하나 이상 필요
+        bool hasWallpaper = !string.IsNullOrEmpty(_profile.WallpaperPath)
+                            || !string.IsNullOrEmpty(_profile.VideoPath)
+                            || _profile.MonitorWallpapers.Count > 0;
+        if (!hasWallpaper)
         {
-            MessageBox.Show("월페이퍼를 하나 이상 선택해주세요.", "알림",
+            MessageBox.Show("배경화면을 선택해주세요.", "알림",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

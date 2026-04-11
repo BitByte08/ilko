@@ -6,12 +6,14 @@
         ShowInTaskbar="False"
         Background="Black"
         ResizeMode="NoResize"
-        Left="-32000" Top="-32000"
+        WindowStartupLocation="Manual"
+        Left="0" Top="0"
         Width="1920" Height="1080">
     <MediaElement x:Name="Video"
                   LoadedBehavior="Manual"
                   UnloadedBehavior="Close"
                   Volume="0"
                   Stretch="UniformToFill"
-                  MediaEnded="OnMediaEnded"/>
+                  MediaEnded="OnMediaEnded"
+                  MediaFailed="OnMediaFailed"/>
 </Window>
