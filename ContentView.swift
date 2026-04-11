@@ -577,41 +577,6 @@ struct SettingsView: View {
 
                     Divider()
 
-                    // Random Wallpaper on Startup
-                    SettingRow(title: L.randomOnStartup) {
-                        Toggle(
-                            "",
-                            isOn: Binding(
-                                get: {
-                                    UserDefaults.standard.bool(
-                                        forKey: UserDefaultsKeys.randomOnStartup)
-                                },
-                                set: {
-                                    UserDefaults.standard.set(
-                                        $0, forKey: UserDefaultsKeys.randomOnStartup)
-                                }
-                            )
-                        )
-                        .toggleStyle(.switch)
-                    }
-
-                    // Random Wallpaper on Wakeup
-                    SettingRow(title: L.randomOnLid) {
-                        Toggle(
-                            "",
-                            isOn: Binding(
-                                get: {
-                                    UserDefaults.standard.bool(forKey: UserDefaultsKeys.randomOnLid)
-                                },
-                                set: {
-                                    UserDefaults.standard.set(
-                                        $0, forKey: UserDefaultsKeys.randomOnLid)
-                                }
-                            )
-                        )
-                        .toggleStyle(.switch)
-                    }
-
                     // Auto-Pause When App is Active
                     SettingRow(title: L.pauseWhenActive) {
                         Toggle(
