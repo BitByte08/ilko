@@ -89,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(locationWatcher)
                 .environmentObject(switchController)
         )
-        window.title = "ilko"
+        window.title = "ILKO"
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
 

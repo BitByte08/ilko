@@ -26,7 +26,7 @@ class MenuBarController {
         if let button = statusItem.button {
             button.image = NSImage(
                 systemSymbolName: "play.desktopcomputer",
-                accessibilityDescription: "ilko"
+                accessibilityDescription: "ILKO"
             )
         }
 

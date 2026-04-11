@@ -12,10 +12,10 @@
 <string>livewall</string>
 
   <key>CFBundleIdentifier</key>
-  <string>com.thusvill.LiveWallpaper</string>
+  <string>com.thusvill.ILKO</string>
 
   <key>CFBundleName</key>
-  <string>LiveWallpaper</string>
+  <string>ILKO</string>
 
   <key>CFBundlePackageType</key>
   <string>APPL</string>
