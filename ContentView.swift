@@ -160,7 +160,6 @@ struct ContentView: View {
     @StateObject private var viewModel = WallpaperViewModel()
     @State private var showSettings = false
     @State private var showProfiles = false
-    @StateObject private var displayManager = DisplayManager()
 
     @Environment(\.dismiss) private var dismiss
     static var didCloseOnLaunch = false
@@ -182,17 +181,10 @@ struct ContentView: View {
                     VideoGridView(
                         videos: viewModel.videos, viewModel: viewModel,
                         onVideoSelect: { video in
-                            viewModel.startWallpaper(
-                                video: video, displays: Array(displayManager.selectedDisplays))
+                            viewModel.startWallpaper(video: video)
                         }
                     )
                     .padding(.horizontal, 24).padding(.bottom, 24)
-
-                    DisplayDockView(
-                        displays: displayManager.displays,
-                        selectedDisplays: $displayManager.selectedDisplays
-                    )
-                    .padding(.bottom, 20)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -201,7 +193,6 @@ struct ContentView: View {
             .compatibleGlass(cornerRadius: 16)
             .frame(minWidth: 600, minHeight: 250)
             .onAppear {
-                viewModel.loadDisplays()
                 viewModel.reloadContent()
                 if !Self.didCloseOnLaunch, let engine = sharedEngine, !engine.isFirstLaunch() {
                     Self.didCloseOnLaunch = true
@@ -401,114 +392,6 @@ struct QualityBadge: View {
                 RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(Color.black, lineWidth: 1)
             )
-    }
-}
-
-// MARK: - Display Manager
-class DisplayManager: ObservableObject {
-    @Published var displays: [DisplayObjc] = []
-    @Published var selectedDisplays: Set<UInt32> = []
-
-    init() {
-        sharedEngine?.scanDisplays()
-        updateDisplays()
-        CGDisplayRegisterReconfigurationCallback(
-            displayReconfigCallback, Unmanaged.passUnretained(self).toOpaque())
-    }
-
-    deinit {
-        CGDisplayRemoveReconfigurationCallback(
-            displayReconfigCallback, Unmanaged.passUnretained(self).toOpaque())
-    }
-
-    func updateDisplays() {
-        sharedEngine?.scanDisplays()
-        DispatchQueue.main.async { [weak self] in
-            self?.displays = sharedEngine?.getDisplays() as? [DisplayObjc] ?? []
-        }
-    }
-}
-
-nonisolated(unsafe) private let displayReconfigCallback: CGDisplayReconfigurationCallBack = {
-    display, flags, userInfo in
-    guard let userInfo = userInfo else { return }
-    let manager = Unmanaged<DisplayManager>.fromOpaque(userInfo).takeUnretainedValue()
-    DispatchQueue.main.async {
-        manager.updateDisplays()
-        manager.selectedDisplays.removeAll()
-    }
-}
-
-// MARK: - Display Dock View
-struct DisplayDockView: View {
-    let displays: [DisplayObjc]
-    @Binding var selectedDisplays: Set<UInt32>
-    @Namespace private var namespace
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(displays, id: \.screen) { display in
-                DisplayButton(
-                    display: display,
-                    isSelected: selectedDisplays.contains(display.screen)
-                ) {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        if selectedDisplays.contains(display.screen) {
-                            selectedDisplays.remove(display.screen)
-                        } else {
-                            selectedDisplays.insert(display.screen)
-                        }
-                    }
-                }
-                .matchedGeometryEffect(id: display.screen, in: namespace)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: displays.map { $0.screen })
-    }
-}
-
-// MARK: - Display Button
-struct DisplayButton: View {
-    let display: DisplayObjc
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Spacer()
-                Text(display.getDisplayName()).font(.system(size: 12, weight: .bold)).lineLimit(1)
-                Text(display.getResolution()).font(.system(size: 10)).foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(width: 200, height: 80)
-            .foregroundStyle(.primary)
-            .contentShape(Rectangle())
-            .background {
-                if #available(macOS 26.0, *) {
-                    Color.clear.glassEffect(
-                        .regular.interactive(), in: .rect(cornerRadius: isSelected ? 26 : 20))
-                } else {
-                    VisualEffectView(material: isSelected ? .selection : .headerView)
-                        .clipShape(RoundedRectangle(cornerRadius: isSelected ? 26 : 20))
-                }
-            }
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(
-                        Color.yellow, lineWidth: 2)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(isSelected ? 1.03 : 1.0)
-        .shadow(
-            color: isSelected ? Color.yellow.opacity(0.45) : Color.black.opacity(0.15),
-            radius: isSelected ? 20 : 10, y: 8
-        )
-        .animation(.spring(response: 0.45, dampingFraction: 0.75), value: isSelected)
     }
 }
 
@@ -846,7 +729,6 @@ class ThumbnailCache: ObservableObject {
 class WallpaperViewModel: ObservableObject {
 
     @Published var videos: [VideoItem] = []
-    @Published var displays: [DisplayObjc] = []
     @Published var folderPath: String = ""
     @Published var scaleMode: String = "fill"
     @Published var randomOnStartup: Bool = false
@@ -935,13 +817,11 @@ class WallpaperViewModel: ObservableObject {
         }
     }
 
-    func loadDisplays() {
-        displays = sharedEngine?.getDisplays() as? [DisplayObjc] ?? []
-    }
-
-    func startWallpaper(video: VideoItem, displays: [UInt32]) {
-        let arr = displays.map { NSNumber(value: $0) }
-        engine.startWallpaper(withPath: video.path, onDisplays: arr)
+    func startWallpaper(video: VideoItem) {
+        let displays = NSScreen.screens.compactMap {
+            $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+        }
+        engine.startWallpaper(withPath: video.path, onDisplays: displays)
     }
 
     func clearCache() {
