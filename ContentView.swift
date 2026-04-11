@@ -550,33 +550,6 @@ struct SettingsView: View {
 
                     Divider()
 
-                    // Language Selection
-                    SettingRow(title: "앱 언어") {
-                        Picker(
-                            "",
-                            selection: Binding(
-                                get: { LanguageManager.shared.currentLanguage },
-                                set: { newValue in
-                                    LanguageManager.shared.currentLanguage = newValue
-                                    let alert = NSAlert()
-                                    alert.messageText = "언어 변경됨"
-                                    alert.informativeText = "앱을 재시작하면 변경 사항이 적용됩니다."
-                                    alert.alertStyle = .informational
-                                    alert.addButton(withTitle: "확인")
-                                    alert.runModal()
-                                }
-                            )
-                        ) {
-                            Text("시스템 언어").tag("auto")
-                            Text("简体中文").tag("zh-Hans")
-                            Text("English").tag("en")
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 150)
-                    }
-
-                    Divider()
-
                     // Auto-Pause When App is Active
                     SettingRow(title: L.pauseWhenActive) {
                         Toggle(
