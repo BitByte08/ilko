@@ -22,7 +22,7 @@ struct VideoGridView: View {
 
                     if panel.runModal() == .OK, let url = panel.url {
                         viewModel.folderPath = url.path
-                        sharedEngine?.selectFolder(url.path())
+                        viewModel.engine.selectFolder(url.path())
                         viewModel.reloadContent()
                     }
                 } label: {

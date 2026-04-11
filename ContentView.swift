@@ -60,7 +60,7 @@ struct ContentView: View {
             .frame(minWidth: 600, minHeight: 250)
             .onAppear {
                 viewModel.reloadContent()
-                if !Self.didCloseOnLaunch, let engine = sharedEngine, !engine.isFirstLaunch() {
+                if !Self.didCloseOnLaunch, !viewModel.engine.isFirstLaunch() {
                     Self.didCloseOnLaunch = true
                     dismiss()
                 }

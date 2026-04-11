@@ -98,7 +98,7 @@ struct SettingsView: View {
                             Slider(value: $viewModel.volume, in: 0...100, step: 1)
                                 .frame(width: 200)
                                 .onChange(of: viewModel.volume) { newValue in
-                                    sharedEngine?.updateVolume(newValue)
+                                    viewModel.engine.updateVolume(newValue)
                                 }
                             Text("\(Int(viewModel.volume))%")
                                 .frame(width: 60, alignment: .leading)
@@ -158,7 +158,7 @@ struct SettingsView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             viewModel.folderPath = url.path
-            sharedEngine?.selectFolder(url.path())
+            viewModel.engine.selectFolder(url.path())
             viewModel.reloadContent()
         }
     }

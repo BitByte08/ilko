@@ -8,11 +8,13 @@ class SwitchController: ObservableObject {
 
     private let profileManager: ProfileManager
     private let locationWatcher: LocationWatcher
+    private let engine: WallpaperEngine
     private var cancellable: AnyCancellable?
 
-    init(profileManager: ProfileManager, locationWatcher: LocationWatcher) {
+    init(profileManager: ProfileManager, locationWatcher: LocationWatcher, engine: WallpaperEngine) {
         self.profileManager = profileManager
         self.locationWatcher = locationWatcher
+        self.engine = engine
 
         cancellable = locationWatcher.$currentGatewayMAC
             .dropFirst()  // 초기값 nil 무시 — LocationWatcher가 실제 체크한 후에만 반응
@@ -75,7 +77,6 @@ class SwitchController: ObservableObject {
 
     /// mp4/mov: WallpaperEngine으로 모든 디스플레이에 루프 재생
     private func applyVideo(_ path: String) {
-        guard let engine = sharedEngine else { return }
         let displayIDs = NSScreen.screens.compactMap {
             $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         }
@@ -88,6 +89,6 @@ class SwitchController: ObservableObject {
         for screen in NSScreen.screens {
             try? NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
         }
-        sharedEngine?.killAllDaemons()
+        engine.killAllDaemons()
     }
 }

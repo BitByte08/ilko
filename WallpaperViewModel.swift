@@ -32,6 +32,8 @@ class WallpaperViewModel: ObservableObject {
     private let defaults = UserDefaults.standard
     let engine: WallpaperEngine
 
+    /// `engine`을 명시적으로 전달하는 것이 권장됩니다.
+    /// ContentView의 @StateObject 생성자에서는 모듈 수준 sharedEngine을 사용합니다.
     init(engine: WallpaperEngine = sharedEngine ?? WallpaperEngine.shared()) {
         self.engine = engine
         loadSettings()

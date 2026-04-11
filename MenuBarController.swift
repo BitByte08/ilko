@@ -7,16 +7,19 @@ class MenuBarController {
     private let statusItem: NSStatusItem
     private let profileManager: ProfileManager
     private let switchController: SwitchController
+    private let engine: WallpaperEngine
     private let showWindowCallback: () -> Void
     private var cancellables = Set<AnyCancellable>()
 
     init(
         profileManager: ProfileManager,
         switchController: SwitchController,
+        engine: WallpaperEngine,
         showWindow: @escaping () -> Void
     ) {
         self.profileManager = profileManager
         self.switchController = switchController
+        self.engine = engine
         self.showWindowCallback = showWindow
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -102,7 +105,7 @@ class MenuBarController {
     }
 
     @objc private func quitApp() {
-        sharedEngine?.terminateApplication()
+        engine.terminateApplication()
         NSApp.terminate(nil)
     }
 }

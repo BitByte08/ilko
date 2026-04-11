@@ -37,8 +37,6 @@ struct LiveWallpaperApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
 
-    let engine = sharedEngine
-
     // ilko 핵심 컨트롤러
     let profileManager = ProfileManager()
     let locationWatcher = LocationWatcher()
@@ -49,14 +47,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
+        guard let engine = sharedEngine else {
+            fatalError("[AppDelegate] WallpaperEngine 초기화 실패 — 앱을 시작할 수 없습니다.")
+        }
+
         // 컨트롤러 초기화 (순서 중요: watcher → switch → menubar)
         switchController = SwitchController(
             profileManager: profileManager,
-            locationWatcher: locationWatcher
+            locationWatcher: locationWatcher,
+            engine: engine
         )
         menuBarController = MenuBarController(
             profileManager: profileManager,
             switchController: switchController,
+            engine: engine,
             showWindow: { [weak self] in self?.showWindow() }
         )
 
@@ -66,7 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // ilko 전용 월페이퍼 폴더를 WallpaperEngine에 등록
         // (LiveWallpaper의 기존 WallpaperFolder와 분리)
         let ilkoFolder = ProfileManager.wallpapersDirectory.path
-        sharedEngine?.selectFolder(ilkoFolder)
+        engine.selectFolder(ilkoFolder)
 
         // 메인 윈도우 (환경 객체 주입)
         window = NSWindow(
