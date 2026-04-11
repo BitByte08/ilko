@@ -405,7 +405,6 @@ struct ProfilesView: View {
     @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var locationWatcher: LocationWatcher
     @EnvironmentObject var switchController: SwitchController
-    @State private var showProfileEditor = false
     @State private var editingProfile: Profile?
 
     var body: some View {
@@ -417,7 +416,6 @@ struct ProfilesView: View {
                 Spacer()
                 Button {
                     editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentGatewayMAC, wallpaperPath: "")
-                    showProfileEditor = true
                 } label: {
                     Label("추가", systemImage: "plus")
                 }
@@ -430,10 +428,7 @@ struct ProfilesView: View {
                         ProfileRowView(
                             profile: profile,
                             currentNetworkID: locationWatcher.currentGatewayMAC,
-                            onEdit: {
-                                editingProfile = profile
-                                showProfileEditor = true
-                            },
+                            onEdit: { editingProfile = profile },
                             onDelete: {
                                 let isActive = switchController.activeProfile?.id == profile.id
                                 profileManager.delete(id: profile.id)
@@ -449,24 +444,22 @@ struct ProfilesView: View {
         }
         .padding()
         .frame(width: 500, height: 400)
-        .sheet(isPresented: $showProfileEditor) {
-            if let profile = editingProfile {
-                ProfileEditorView(
-                    profile: profile,
-                    currentNetworkID: locationWatcher.currentGatewayMAC,
-                    onSave: { updated in
-                        let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
-                        if isNew {
-                            profileManager.add(updated)
-                            switchController.apply(updated)
-                        } else {
-                            profileManager.update(updated)
-                        }
-                        showProfileEditor = false
-                    },
-                    onCancel: { showProfileEditor = false }
-                )
-            }
+        .sheet(item: $editingProfile) { profile in
+            ProfileEditorView(
+                profile: profile,
+                currentNetworkID: locationWatcher.currentGatewayMAC,
+                onSave: { updated in
+                    let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
+                    if isNew {
+                        profileManager.add(updated)
+                        switchController.apply(updated)
+                    } else {
+                        profileManager.update(updated)
+                    }
+                    editingProfile = nil
+                },
+                onCancel: { editingProfile = nil }
+            )
         }
         .background(.ultraThinMaterial)
         .compatibleGlass(cornerRadius: 1)
