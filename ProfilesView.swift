@@ -8,7 +8,7 @@ struct ProfilesView: View {
     @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var locationWatcher: LocationWatcher
     @EnvironmentObject var switchController: SwitchController
-    @State private var editingProfile: Profile?
+    @Binding var editingProfile: Profile?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -47,25 +47,7 @@ struct ProfilesView: View {
         }
         .padding()
         .frame(width: 500, height: 400)
-        .sheet(item: $editingProfile) { profile in
-            ProfileEditorView(
-                profile: profile,
-                isDefaultProfile: profile.gatewayMAC == nil,
-                existingProfiles: profileManager.profiles,
-                currentNetworkID: locationWatcher.currentGatewayMAC,
-                onSave: { updated in
-                    let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
-                    if isNew {
-                        profileManager.add(updated)
-                        switchController.apply(updated)
-                    } else {
-                        profileManager.update(updated)
-                    }
-                    editingProfile = nil
-                },
-                onCancel: { editingProfile = nil }
-            )
-        }
+        .contentShape(Rectangle())
         .background(.ultraThinMaterial)
         .compatibleGlass(cornerRadius: 1)
     }
@@ -119,7 +101,10 @@ struct ProfileEditorView: View {
                 .font(.title2).fontWeight(.bold)
 
             // 이름
-            LabeledContent("이름") {
+            HStack(alignment: .top, spacing: 12) {
+                Text("이름")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 72, alignment: .trailing)
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("홈, 카페, 회사…", text: $profile.name)
                         .textFieldStyle(.roundedBorder)
@@ -134,52 +119,57 @@ struct ProfileEditorView: View {
             }
 
             // 네트워크
-            LabeledContent("네트워크") {
-                HStack {
-                    Text(profile.gatewayMAC ?? "없음 = 기본 프로필")
-                        .foregroundStyle(profile.gatewayMAC == nil ? .secondary : .primary)
-                        .frame(width: 160, alignment: .leading)
-                        .font(.system(.body, design: .monospaced))
-
-                    if !isDefaultProfile {
-                        if let mac = currentNetworkID {
-                            if profile.gatewayMAC == mac {
-                                Label("현재 네트워크", systemImage: "checkmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Button("현재 네트워크로") {
-                                    profile.gatewayMAC = mac
-                                }
+            HStack(spacing: 12) {
+                Text("네트워크")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 72, alignment: .trailing)
+                Text(profile.gatewayMAC ?? "없음 = 기본 프로필")
+                    .foregroundStyle(profile.gatewayMAC == nil ? .secondary : .primary)
+                    .frame(width: 160, alignment: .leading)
+                    .font(.system(.body, design: .monospaced))
+                if !isDefaultProfile {
+                    if let mac = currentNetworkID {
+                        if profile.gatewayMAC == mac {
+                            Label("현재 네트워크", systemImage: "checkmark.circle.fill")
                                 .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("현재 네트워크로") {
+                                profile.gatewayMAC = mac
                             }
+                            .font(.caption)
                         }
                     }
                 }
             }
 
             // 월페이퍼 파일
-            LabeledContent("월페이퍼") {
-                HStack {
-                    Text(profile.wallpaperPath.isEmpty ? "파일 없음" : URL(fileURLWithPath: profile.wallpaperPath).lastPathComponent)
-                        .foregroundStyle(profile.wallpaperPath.isEmpty ? .secondary : .primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(width: 160, alignment: .leading)
-
-                    Button("선택") { pickFile() }
-                }
+            HStack(spacing: 12) {
+                Text("월페이퍼")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 72, alignment: .trailing)
+                Text(profile.wallpaperPath.isEmpty
+                     ? "파일 없음"
+                     : URL(fileURLWithPath: profile.wallpaperPath).lastPathComponent)
+                    .foregroundStyle(profile.wallpaperPath.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(width: 160, alignment: .leading)
+                Button("선택") { openFilePicker() }
             }
 
-            // 미리보기
+            // 미리보기 (hit-testing 비활성화: 썸네일이 위 버튼 영역을 덮지 않도록)
             if let img = thumbnailImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 160)
+                    .overlay(
+                        Image(nsImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+                    .allowsHitTesting(false)
             }
 
             Divider()
@@ -188,14 +178,43 @@ struct ProfileEditorView: View {
                 Spacer()
                 Button("취소", action: onCancel)
                 Button("저장") { onSave(profile) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(profile.name.isEmpty || profile.wallpaperPath.isEmpty || isDuplicateName)
+                .buttonStyle(.borderedProminent)
+                .disabled(profile.name.isEmpty || profile.wallpaperPath.isEmpty || isDuplicateName)
             }
         }
         .padding(24)
         .frame(width: 460)
         .task(id: profile.wallpaperPath) {
             thumbnailImage = await loadThumbnail(path: profile.wallpaperPath)
+        }
+    }
+
+    private func openFilePicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.movie, .jpeg, .png]
+
+        guard let window = NSApp.keyWindow else {
+            if panel.runModal() == .OK, let url = panel.url {
+                applySelectedURL(url)
+            }
+            return
+        }
+
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            DispatchQueue.main.async { applySelectedURL(url) }
+        }
+    }
+
+    private func applySelectedURL(_ url: URL) {
+        do {
+            let dest = try ProfileManager.importWallpaper(from: url)
+            profile.wallpaperPath = dest.path
+        } catch {
+            profile.wallpaperPath = url.path
         }
     }
 
@@ -219,19 +238,5 @@ struct ProfileEditorView: View {
         }
     }
 
-    private func pickFile() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.movie, .jpeg, .png]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let dest = try ProfileManager.importWallpaper(from: url)
-            profile.wallpaperPath = dest.path
-        } catch {
-            // 복사 실패 시 원본 경로 그대로 사용
-            profile.wallpaperPath = url.path
-        }
-    }
+
 }

@@ -24,8 +24,10 @@ struct ContentView: View {
     @StateObject private var viewModel = WallpaperViewModel()
     @State private var showSettings = false
     @State private var showProfiles = false
+    @State private var editingProfile: Profile?
     @EnvironmentObject var locationWatcher: LocationWatcher
     @EnvironmentObject var switchController: SwitchController
+    @EnvironmentObject var profileManager: ProfileManager
 
     @Environment(\.dismiss) private var dismiss
     static var didCloseOnLaunch = false
@@ -74,7 +76,6 @@ struct ContentView: View {
                 SettingsView(viewModel: viewModel)
                     .shadow(radius: 3)
                     .cornerRadius(15)
-                    .onTapGesture {}
                     .animation(.easeInOut, value: showSettings)
             }
 
@@ -83,15 +84,33 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     .onTapGesture { showProfiles = false }
 
-                ProfilesView()
+                ProfilesView(editingProfile: $editingProfile)
                     .shadow(radius: 3)
                     .cornerRadius(15)
-                    .onTapGesture {}
                     .animation(.easeInOut, value: showProfiles)
             }
         }
         .animation(.easeInOut, value: showSettings)
         .animation(.easeInOut, value: showProfiles)
+        .sheet(item: $editingProfile) { profile in
+            ProfileEditorView(
+                profile: profile,
+                isDefaultProfile: profile.gatewayMAC == nil,
+                existingProfiles: profileManager.profiles,
+                currentNetworkID: locationWatcher.currentGatewayMAC,
+                onSave: { updated in
+                    let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
+                    if isNew {
+                        profileManager.add(updated)
+                        switchController.apply(updated)
+                    } else {
+                        profileManager.update(updated)
+                    }
+                    editingProfile = nil
+                },
+                onCancel: { editingProfile = nil }
+            )
+        }
     }
 }
 
