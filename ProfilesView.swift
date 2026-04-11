@@ -206,15 +206,14 @@ struct ProfileEditorView: View {
         case "jpg", "jpeg", "png":
             return NSImage(contentsOfFile: path)
         case "mp4", "mov":
-            let cgImage = await Task.detached(priority: .utility) { () -> CGImage? in
+            return await Task.detached(priority: .utility) {
                 let asset = AVAsset(url: URL(fileURLWithPath: path))
                 let gen = AVAssetImageGenerator(asset: asset)
                 gen.appliesPreferredTrackTransform = true
                 gen.maximumSize = CGSize(width: 800, height: 500)
-                return try? gen.copyCGImage(at: .zero, actualTime: nil)
+                guard let cgImage = try? gen.copyCGImage(at: .zero, actualTime: nil) else { return nil }
+                return NSImage(cgImage: cgImage, size: .zero)
             }.value
-            guard let cgImage else { return nil }
-            return NSImage(cgImage: cgImage, size: .zero)
         default:
             return nil
         }
