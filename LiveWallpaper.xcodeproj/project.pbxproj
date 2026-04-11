@@ -60,6 +60,13 @@
 		B1000006FFFF00000000BB06 /* SwitchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000005FFFF00000000BB05 /* SwitchController.swift */; };
 		B1000008FFFF00000000BB08 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000007FFFF00000000BB07 /* MenuBarController.swift */; };
 		B100000AFFFF00000000BB0A /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000009FFFF00000000BB09 /* CoreWLAN.framework */; };
+		B100000CFFFF00000000BB0C /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000BFFFF00000000BB0B /* VisualEffectView.swift */; };
+		B100000EFFFF00000000BB0E /* LanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000DFFFF00000000BB0D /* LanguageManager.swift */; };
+		B1000010FFFF00000000BB10 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000FFFFF00000000BB0F /* ThumbnailCache.swift */; };
+		B1000012FFFF00000000BB12 /* WallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */; };
+		B1000014FFFF00000000BB14 /* VideoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000013FFFF00000000BB13 /* VideoGridView.swift */; };
+		B1000016FFFF00000000BB16 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000015FFFF00000000BB15 /* SettingsView.swift */; };
+		B1000018FFFF00000000BB18 /* ProfilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000017FFFF00000000BB17 /* ProfilesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -279,6 +286,13 @@
 		B1000005FFFF00000000BB05 /* SwitchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchController.swift; sourceTree = SOURCE_ROOT; };
 		B1000007FFFF00000000BB07 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = SOURCE_ROOT; };
 		B1000009FFFF00000000BB09 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
+		B100000BFFFF00000000BB0B /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = SOURCE_ROOT; };
+		B100000DFFFF00000000BB0D /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = SOURCE_ROOT; };
+		B100000FFFFF00000000BB0F /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = SOURCE_ROOT; };
+		B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperViewModel.swift; sourceTree = SOURCE_ROOT; };
+		B1000013FFFF00000000BB13 /* VideoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoGridView.swift; sourceTree = SOURCE_ROOT; };
+		B1000015FFFF00000000BB15 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = SOURCE_ROOT; };
+		B1000017FFFF00000000BB17 /* ProfilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilesView.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -365,6 +379,13 @@
 				B1000003FFFF00000000BB03 /* ProfileManager.swift */,
 				B1000005FFFF00000000BB05 /* SwitchController.swift */,
 				B1000007FFFF00000000BB07 /* MenuBarController.swift */,
+				B100000BFFFF00000000BB0B /* VisualEffectView.swift */,
+				B100000DFFFF00000000BB0D /* LanguageManager.swift */,
+				B100000FFFFF00000000BB0F /* ThumbnailCache.swift */,
+				B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */,
+				B1000013FFFF00000000BB13 /* VideoGridView.swift */,
+				B1000015FFFF00000000BB15 /* SettingsView.swift */,
+				B1000017FFFF00000000BB17 /* ProfilesView.swift */,
 				04E057732EEAB43200F90A44 /* src */,
 			);
 			path = LiveWallpaper;
@@ -767,6 +788,13 @@
 				B1000004FFFF00000000BB04 /* ProfileManager.swift in Sources */,
 				B1000006FFFF00000000BB06 /* SwitchController.swift in Sources */,
 				B1000008FFFF00000000BB08 /* MenuBarController.swift in Sources */,
+				B100000CFFFF00000000BB0C /* VisualEffectView.swift in Sources */,
+				B100000EFFFF00000000BB0E /* LanguageManager.swift in Sources */,
+				B1000010FFFF00000000BB10 /* ThumbnailCache.swift in Sources */,
+				B1000012FFFF00000000BB12 /* WallpaperViewModel.swift in Sources */,
+				B1000014FFFF00000000BB14 /* VideoGridView.swift in Sources */,
+				B1000016FFFF00000000BB16 /* SettingsView.swift in Sources */,
+				B1000018FFFF00000000BB18 /* ProfilesView.swift in Sources */,
 			);
 		};
 		04E055E42EEA8D2C00F90A44 /* Sources */ = {
