@@ -399,6 +399,7 @@ struct QualityBadge: View {
 struct ProfilesView: View {
     @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var locationWatcher: LocationWatcher
+    @EnvironmentObject var switchController: SwitchController
     @State private var showProfileEditor = false
     @State private var editingProfile: Profile?
 
@@ -443,10 +444,12 @@ struct ProfilesView: View {
                     profile: profile,
                     currentNetworkID: locationWatcher.currentGatewayMAC,
                     onSave: { updated in
-                        if profileManager.profiles.contains(where: { $0.id == updated.id }) {
-                            profileManager.update(updated)
-                        } else {
+                        let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
+                        if isNew {
                             profileManager.add(updated)
+                            switchController.apply(updated)
+                        } else {
+                            profileManager.update(updated)
                         }
                         showProfileEditor = false
                     },
