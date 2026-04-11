@@ -73,6 +73,15 @@ make dmg VERSION=1.0.0
 
 ---
 
+https://motionbgs.com/
+
+## 월페이퍼 영상 다운로드 링크 모음 (여러분들이 찾은 사이트를 계속해서 추가해주세요!)
+
+- https://motionbgs.com/
+- https://moewalls.com/anime
+
+---
+
 ## 크레딧
 
 Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill — GPL v3.
