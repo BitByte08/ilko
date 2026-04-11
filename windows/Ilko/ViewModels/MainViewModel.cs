@@ -108,16 +108,15 @@ public class MainViewModel : INotifyPropertyChanged
 
     public void SaveProfile(Profile profile)
     {
-        var existing = _profileManager.Profiles.FirstOrDefault(p => p.Id == profile.Id);
-        if (existing == null)
-        {
+        var isNew = !_profileManager.Profiles.Any(p => p.Id == profile.Id);
+        if (isNew)
             _profileManager.Add(profile);
-            _switchController.Apply(profile);
-        }
         else
-        {
             _profileManager.Update(profile);
-        }
+
+        // 저장 후 항상 즉시 적용
+        _switchController.ForceApply(profile);
+
         IsEditing = false;
         EditingProfile = null;
     }

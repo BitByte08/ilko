@@ -27,8 +27,15 @@ public class SwitchController
         _locationWatcher.GatewayMACChanged += OnNetworkChange;
     }
 
-    /// <summary>수동으로 프로필 전환.</summary>
-    public void Apply(Profile profile) => ApplyProfile(profile);
+    /// <summary>수동으로 프로필 전환 (이미 활성이면 건너뜀).</summary>
+    public void Apply(Profile profile)
+    {
+        if (profile.Id == ActiveProfile?.Id) return;
+        ApplyProfile(profile);
+    }
+
+    /// <summary>이미 활성 프로필이어도 강제로 재적용 (저장 직후 등).</summary>
+    public void ForceApply(Profile profile) => ApplyProfile(profile);
 
     /// <summary>현재 네트워크에 맞는 프로필을 강제 적용.</summary>
     public void ApplyCurrentNetwork()
