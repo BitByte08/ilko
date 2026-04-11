@@ -159,6 +159,7 @@ enum UserDefaultsKeys {
 struct ContentView: View {
     @StateObject private var viewModel = WallpaperViewModel()
     @State private var showSettings = false
+    @State private var showProfiles = false
     @StateObject private var displayManager = DisplayManager()
 
     @Environment(\.dismiss) private var dismiss
@@ -170,8 +171,12 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 Spacer(minLength: 20)
-                ToolbarView(showSettings: $showSettings, onReload: { viewModel.reloadContent() })
-                    .padding(.horizontal).padding(.top, 24).padding(.bottom, 12)
+                ToolbarView(
+                    showSettings: $showSettings,
+                    showProfiles: $showProfiles,
+                    onReload: { viewModel.reloadContent() }
+                )
+                .padding(.horizontal).padding(.top, 24).padding(.bottom, 12)
 
                 ZStack(alignment: .bottom) {
                     VideoGridView(
@@ -195,7 +200,6 @@ struct ContentView: View {
             .ignoresSafeArea(.all)
             .compatibleGlass(cornerRadius: 16)
             .frame(minWidth: 600, minHeight: 250)
-            //.sheet(isPresented: $showSettings) { SettingsView(viewModel: viewModel) }
             .onAppear {
                 viewModel.loadDisplays()
                 viewModel.reloadContent()
@@ -206,13 +210,9 @@ struct ContentView: View {
             }
 
             if showSettings {
-
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        showSettings = false
-
-                    }
+                    .onTapGesture { showSettings = false }
 
                 SettingsView(viewModel: viewModel)
                     .shadow(radius: 3)
@@ -221,13 +221,27 @@ struct ContentView: View {
                     .animation(.easeInOut, value: showSettings)
             }
 
+            if showProfiles {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture { showProfiles = false }
+
+                ProfilesView()
+                    .shadow(radius: 3)
+                    .cornerRadius(15)
+                    .onTapGesture {}
+                    .animation(.easeInOut, value: showProfiles)
+            }
+
         }.animation(.easeInOut, value: showSettings)
+         .animation(.easeInOut, value: showProfiles)
     }
 }
 
 // MARK: - Toolbar View
 struct ToolbarView: View {
     @Binding var showSettings: Bool
+    @Binding var showProfiles: Bool
     let onReload: () -> Void
 
     var body: some View {
@@ -243,6 +257,19 @@ struct ToolbarView: View {
             } else {
                 Button(action: onReload) {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 16))
+                }
+            }
+
+            if #available(macOS 26.0, *) {
+                Button(action: { showProfiles = true }) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.glass)
+            } else {
+                Button(action: { showProfiles = true }) {
+                    Image(systemName: "person.2")
                         .font(.system(size: 16))
                 }
             }
@@ -485,18 +512,77 @@ struct DisplayButton: View {
     }
 }
 
+// MARK: - Profiles View
+struct ProfilesView: View {
+    @EnvironmentObject var profileManager: ProfileManager
+    @EnvironmentObject var locationWatcher: LocationWatcher
+    @State private var showProfileEditor = false
+    @State private var editingProfile: Profile?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("프로필 관리")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Spacer()
+                Button {
+                    editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentGatewayMAC, wallpaperPath: "")
+                    showProfileEditor = true
+                } label: {
+                    Label("추가", systemImage: "plus")
+                }
+            }
+            .padding(.bottom, 8)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(profileManager.profiles) { profile in
+                        ProfileRowView(
+                            profile: profile,
+                            currentNetworkID: locationWatcher.currentGatewayMAC,
+                            onEdit: {
+                                editingProfile = profile
+                                showProfileEditor = true
+                            },
+                            onDelete: { profileManager.delete(id: profile.id) }
+                        )
+                    }
+                }
+                .padding()
+            }
+        }
+        .padding()
+        .frame(width: 500, height: 400)
+        .sheet(isPresented: $showProfileEditor) {
+            if let profile = editingProfile {
+                ProfileEditorView(
+                    profile: profile,
+                    currentNetworkID: locationWatcher.currentGatewayMAC,
+                    onSave: { updated in
+                        if profileManager.profiles.contains(where: { $0.id == updated.id }) {
+                            profileManager.update(updated)
+                        } else {
+                            profileManager.add(updated)
+                        }
+                        showProfileEditor = false
+                    },
+                    onCancel: { showProfileEditor = false }
+                )
+            }
+        }
+        .background(.ultraThinMaterial)
+        .compatibleGlass(cornerRadius: 1)
+    }
+}
+
 // MARK: - Settings View
 struct SettingsView: View {
     @ObservedObject var viewModel: WallpaperViewModel
-    @EnvironmentObject var profileManager: ProfileManager
-    @EnvironmentObject var locationWatcher: LocationWatcher
     @Environment(\.dismiss) private var dismiss
     @State private var showFolderPicker = false
     @AppStorage(UserDefaultsKeys.scaleMode) var scaleMode: Int = 0
-    @State private var localMinutes: Int = 60
     @State private var isShowingView = true
-    @State private var showProfileEditor = false
-    @State private var editingProfile: Profile?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -625,55 +711,12 @@ struct SettingsView: View {
                         }
                     }
 
-                    Divider()
-
-                    // MARK: 프로필 관리
-                    HStack {
-                        Text("프로필 관리")
-                            .font(.headline)
-                        Spacer()
-                        Button {
-                            editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentGatewayMAC, wallpaperPath: "")
-                            showProfileEditor = true
-                        } label: {
-                            Label("추가", systemImage: "plus")
-                        }
-                    }
-
-                    ForEach(profileManager.profiles) { profile in
-                        ProfileRowView(
-                            profile: profile,
-                            currentNetworkID: locationWatcher.currentGatewayMAC,
-                            onEdit: {
-                                editingProfile = profile
-                                showProfileEditor = true
-                            },
-                            onDelete: { profileManager.delete(id: profile.id) }
-                        )
-                    }
                 }
                 .padding()
             }
         }
         .padding()
         .frame(width: 600, height: 500)
-        .sheet(isPresented: $showProfileEditor) {
-            if let profile = editingProfile {
-                ProfileEditorView(
-                    profile: profile,
-                    currentNetworkID: locationWatcher.currentGatewayMAC,
-                    onSave: { updated in
-                        if profileManager.profiles.contains(where: { $0.id == updated.id }) {
-                            profileManager.update(updated)
-                        } else {
-                            profileManager.add(updated)
-                        }
-                        showProfileEditor = false
-                    },
-                    onCancel: { showProfileEditor = false }
-                )
-            }
-        }
         .background(.ultraThinMaterial)
         .compatibleGlass(cornerRadius: 1)
 
