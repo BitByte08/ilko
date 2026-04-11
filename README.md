@@ -1,4 +1,4 @@
-# ilko
+# ILKO
 
 > 네트워크 기반 자동 월페이퍼 전환 — 집에선 덕질, 밖에선 일코
 
@@ -12,16 +12,29 @@ Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by
 ## 주요 기능
 
 - **게이트웨이 MAC 기반 자동 전환** — SCDynamicStore로 네트워크 변경을 실시간 감지, VPN 환경에서도 실제 Wi-Fi 게이트웨이를 정확히 식별
-- **Wi-Fi 단절 시 기본 프로필** — 연결된 네트워크가 없거나 등록되지 않은 네트워크면 기본 (일코) 프로필로 자동 전환
+- **Wi-Fi 단절 시 기본 프로필** — 연결된 네트워크가 없거나 등록되지 않은 네트워크면 기본(일코) 프로필로 자동 전환
 - **프로필 관리** — 네트워크별 월페이퍼 프로필 등록, 툴바의 👥 버튼으로 접근
 - **라이브 + 정적 월페이퍼** — `.mp4`, `.mov` 루프 재생 / `.jpg`, `.png` 정적 이미지
 - **메뉴바 상주** — 현재 프로필 확인, 수동 전환, 로그인 시 자동 시작
 
 ---
 
-## 설치 (소스 빌드)
+## 설치
 
-**요구사항:** macOS 14+, Xcode Command Line Tools
+### DMG (권장)
+
+1. [Releases](../../releases/latest)에서 `ILKO-vX.X.X.dmg` 다운로드
+2. DMG 열고 `ILKO.app` → Applications 폴더로 드래그
+3. **터미널에서 아래 명령 실행** (최초 1회):
+   ```bash
+   xattr -d com.apple.quarantine /Applications/ILKO.app
+   ```
+   > 이 단계를 건너뛰면 *"손상되었기 때문에 열 수 없습니다"* 오류가 발생합니다.
+4. ILKO 실행 → 메뉴바 아이콘 확인
+
+### 소스 빌드
+
+**요구사항:** macOS 14.6+, Xcode Command Line Tools
 
 ```bash
 git clone https://github.com/winshine0326/ilko.git
@@ -29,19 +42,11 @@ cd ilko
 make run
 ```
 
-Xcode 없이 빌드만 하려면:
+DMG 직접 생성:
 
 ```bash
-make build
-# 결과물: .build/Build/Products/Debug/LiveWallpaper.app
-```
-
-### Gatekeeper 우회
-
-서명 없는 앱이므로 설치 후 아래 명령 실행:
-
-```bash
-xattr -d com.apple.quarantine /Applications/ilko.app
+make dmg VERSION=1.0.0
+# 결과물: dist/ILKO-1.0.0.dmg
 ```
 
 ---
@@ -54,6 +59,12 @@ xattr -d com.apple.quarantine /Applications/ilko.app
 
 > **파일명 주의:** 비디오 파일명에 `.`이 2개 이상이면 인식 불가.  
 > `rem-loop.mp4` ✅ / `rem.1920x1080.mp4` ❌
+
+---
+
+## 시스템 요구사항
+
+- macOS 14.6 (Sonoma) 이상
 
 ---
 
