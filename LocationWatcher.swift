@@ -10,9 +10,12 @@ class LocationWatcher: ObservableObject {
     private var store: SCDynamicStore?
     private var storeSource: CFRunLoopSource?
     private var pendingCheck: Task<Void, Never>?
+    private var networkCheckTask: Task<Void, Never>?  // checkNetwork() 추적용
     private var firstCheckDone = false
+    private var isStopped = false  // stop() 후 콜백/태스크 진입 방지
 
     func start() {
+        isStopped = false
         setupDynamicStore()
         scheduleCheck()  // 1.5초 후 체크 (ARP 캐시 안정화 대기)
     }
@@ -24,8 +27,11 @@ class LocationWatcher: ObservableObject {
     }
 
     func stop() {
+        isStopped = true
         pendingCheck?.cancel()
         pendingCheck = nil
+        networkCheckTask?.cancel()
+        networkCheckTask = nil
         if let source = storeSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
@@ -66,7 +72,10 @@ class LocationWatcher: ObservableObject {
         ] as CFArray
         SCDynamicStoreSetNotificationKeys(store, keys, nil)
 
-        let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)!
+        guard let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0) else {
+            print("[LocationWatcher] ❌ RunLoopSource 생성 실패")
+            return
+        }
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
 
         self.store = store
@@ -75,19 +84,24 @@ class LocationWatcher: ObservableObject {
 
     /// 이벤트가 연속으로 발생할 때 마지막 이벤트 후 1.5초 뒤에만 실제 체크한다.
     private func scheduleCheck() {
+        guard !isStopped else { return }
         pendingCheck?.cancel()
         pendingCheck = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
-            self?.checkNetwork()
+            guard let self, !self.isStopped else { return }
+            self.checkNetwork()
         }
     }
 
     // @MainActor에서 호출됨 — 논블로킹 SSID만 여기서, 나머지 블로킹 작업은 백그라운드
     private func checkNetwork() {
+        guard !isStopped else { return }
+
         // 메인 액터에서 non-blocking SSID만 읽기
         let ssid = CWWiFiClient.shared().interface(withName: "en0")?.ssid()
 
-        Task.detached(priority: .utility) { [weak self] in
+        networkCheckTask?.cancel()
+        networkCheckTask = Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             var networkID: String? = nil
 
@@ -109,7 +123,7 @@ class LocationWatcher: ObservableObject {
             }
 
             await MainActor.run { [weak self] in
-                guard let self else { return }
+                guard let self, !self.isStopped else { return }
                 if !self.firstCheckDone {
                     self.firstCheckDone = true
                     print("[LocationWatcher] 초기 네트워크 ID: \(networkID ?? "nil")")
