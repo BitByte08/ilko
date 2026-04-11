@@ -1,27 +1,61 @@
 import Combine
 import Foundation
+import SystemConfiguration
 
-/// 30초 폴링으로 게이트웨이 MAC을 감지하고, 변경 시 currentGatewayMAC을 publish한다.
+/// SCDynamicStore로 네트워크 변경 이벤트를 실시간 감지하고, 게이트웨이 MAC이 바뀌면 currentGatewayMAC을 publish한다.
 @MainActor
 class LocationWatcher: ObservableObject {
     @Published private(set) var currentGatewayMAC: String?
-    private var timer: Timer?
+    private var store: SCDynamicStore?
+    private var storeSource: CFRunLoopSource?
 
     func start() {
+        setupDynamicStore()
         pollNetwork()  // 즉시 1회 체크
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.pollNetwork() }
-        }
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        if let source = storeSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        storeSource = nil
+        store = nil
     }
 
     /// 현재 게이트웨이 MAC을 즉시 반환한다 (UI 자동 채우기용).
     func currentNetworkID() -> String? {
         fetchGatewayMAC()
+    }
+
+    private func setupDynamicStore() {
+        var ctx = SCDynamicStoreContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil, release: nil, copyDescription: nil
+        )
+        guard let store = SCDynamicStoreCreate(
+            nil,
+            "ilko.LocationWatcher" as CFString,
+            { _, _, info in
+                guard let info else { return }
+                let watcher = Unmanaged<LocationWatcher>.fromOpaque(info).takeUnretainedValue()
+                Task { @MainActor in watcher.pollNetwork() }
+            },
+            &ctx
+        ) else {
+            print("[LocationWatcher] ❌ SCDynamicStore 생성 실패")
+            return
+        }
+
+        // en0의 IPv4 설정(게이트웨이 포함)이 바뀔 때 알림
+        let keys = ["State:/Network/Interface/en0/IPv4"] as CFArray
+        SCDynamicStoreSetNotificationKeys(store, keys, nil)
+
+        let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)!
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+
+        self.store = store
+        self.storeSource = source
     }
 
     private func pollNetwork() {

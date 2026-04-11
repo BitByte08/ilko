@@ -15,8 +15,9 @@ class SwitchController: ObservableObject {
         self.locationWatcher = locationWatcher
 
         cancellable = locationWatcher.$currentGatewayMAC
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] mac in
-                self?.onNetworkChange(mac)
+                Task { @MainActor [weak self] in self?.onNetworkChange(mac) }
             }
     }
 
@@ -26,16 +27,28 @@ class SwitchController: ObservableObject {
     }
 
     private func onNetworkChange(_ mac: String?) {
-        guard let profile = profileManager.profileFor(gatewayMAC: mac) else { return }
-        guard profile.id != activeProfile?.id else { return }
+        print("[SwitchController] 네트워크 변경 감지: \(mac ?? "nil")")
+        guard let profile = profileManager.profileFor(gatewayMAC: mac) else {
+            print("[SwitchController] ❌ 매칭 프로필 없음 (profiles: \(profileManager.profiles.map { "\($0.name)=\($0.gatewayMAC ?? "nil")" }))")
+            return
+        }
+        print("[SwitchController] 매칭 프로필: \(profile.name) (wallpaper: \(profile.wallpaperPath.isEmpty ? "없음" : profile.wallpaperPath))")
+        guard profile.id != activeProfile?.id else {
+            print("[SwitchController] 이미 활성 프로필, 건너뜀")
+            return
+        }
         applyProfile(profile)
     }
 
     private func applyProfile(_ profile: Profile) {
+        print("[SwitchController] 프로필 적용 시작: \(profile.name)")
         activeProfile = profile
         profileManager.activeProfileID = profile.id
         let path = profile.wallpaperPath
-        guard !path.isEmpty else { return }
+        guard !path.isEmpty else {
+            print("[SwitchController] ⚠️ 월페이퍼 경로가 비어있음 — 프로필은 전환됐지만 월페이퍼 변경 없음")
+            return
+        }
         let ext = (path as NSString).pathExtension.lowercased()
         switch ext {
         case "mp4", "mov":
