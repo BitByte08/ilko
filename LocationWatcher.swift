@@ -2,19 +2,22 @@ import Combine
 import Foundation
 import SystemConfiguration
 
-/// SCDynamicStore로 네트워크 변경 이벤트를 실시간 감지하고, 게이트웨이 MAC이 바뀌면 currentGatewayMAC을 publish한다.
+/// SCDynamicStore로 기본 라우트 변경 이벤트를 감지하고, 게이트웨이 MAC이 바뀌면 currentGatewayMAC을 publish한다.
 @MainActor
 class LocationWatcher: ObservableObject {
     @Published private(set) var currentGatewayMAC: String?
     private var store: SCDynamicStore?
     private var storeSource: CFRunLoopSource?
+    private var pendingCheck: Task<Void, Never>?
 
     func start() {
         setupDynamicStore()
-        pollNetwork()  // 즉시 1회 체크
+        scheduleCheck()  // 1.5초 후 체크 (ARP 캐시 안정화 대기)
     }
 
     func stop() {
+        pendingCheck?.cancel()
+        pendingCheck = nil
         if let source = storeSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
@@ -24,7 +27,8 @@ class LocationWatcher: ObservableObject {
 
     /// 현재 게이트웨이 MAC을 즉시 반환한다 (UI 자동 채우기용).
     func currentNetworkID() -> String? {
-        fetchGatewayMAC()
+        guard let ip = fetchGatewayIPFromStore() else { return nil }
+        return fetchGatewayMAC(gatewayIP: ip)
     }
 
     private func setupDynamicStore() {
@@ -39,7 +43,7 @@ class LocationWatcher: ObservableObject {
             { _, _, info in
                 guard let info else { return }
                 let watcher = Unmanaged<LocationWatcher>.fromOpaque(info).takeUnretainedValue()
-                Task { @MainActor in watcher.pollNetwork() }
+                Task { @MainActor in watcher.scheduleCheck() }
             },
             &ctx
         ) else {
@@ -47,8 +51,8 @@ class LocationWatcher: ObservableObject {
             return
         }
 
-        // en0의 IPv4 설정(게이트웨이 포함)이 바뀔 때 알림
-        let keys = ["State:/Network/Interface/en0/IPv4"] as CFArray
+        // 기본 라우트가 바뀔 때만 알림 (Wi-Fi 전환 = 기본 라우트 변경)
+        let keys = ["State:/Network/Global/IPv4"] as CFArray
         SCDynamicStoreSetNotificationKeys(store, keys, nil)
 
         let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)!
@@ -58,20 +62,65 @@ class LocationWatcher: ObservableObject {
         self.storeSource = source
     }
 
-    private func pollNetwork() {
-        let mac = fetchGatewayMAC()
-        if mac != currentGatewayMAC {
-            currentGatewayMAC = mac
+    /// 이벤트가 연속으로 발생할 때 마지막 이벤트 후 1.5초 뒤에만 실제 체크한다.
+    private func scheduleCheck() {
+        pendingCheck?.cancel()
+        pendingCheck = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
+            self?.checkNetwork()
         }
     }
 
-    /// 기본 게이트웨이의 MAC 주소를 반환한다. 권한 불필요.
-    private func fetchGatewayMAC() -> String? {
-        guard let gatewayIP = fetchGatewayIP() else {
-            print("[LocationWatcher] ❌ 게이트웨이 IP를 찾을 수 없음")
+    private func checkNetwork() {
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            guard let ip = await self.fetchGatewayIPFromStore() else {
+                await MainActor.run { [weak self] in
+                    if self?.currentGatewayMAC != nil {
+                        print("[LocationWatcher] 게이트웨이 없음 → nil")
+                        self?.currentGatewayMAC = nil
+                    }
+                }
+                return
+            }
+            let mac = self.fetchGatewayMAC(gatewayIP: ip)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if mac != self.currentGatewayMAC {
+                    self.currentGatewayMAC = mac
+                }
+            }
+        }
+    }
+
+    /// SCDynamicStore에서 기본 게이트웨이 IP를 직접 읽는다 (서브프로세스 불필요).
+    private func fetchGatewayIPFromStore() -> String? {
+        guard let store else { return nil }
+        guard let globalInfo = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
+              let primaryService = globalInfo["PrimaryService"] as? String else {
+            print("[LocationWatcher] ❌ 기본 네트워크 서비스 없음")
             return nil
         }
-        print("[LocationWatcher] 게이트웨이 IP: \(gatewayIP)")
+        let serviceKey = "State:/Network/Service/\(primaryService)/IPv4" as CFString
+        guard let serviceInfo = SCDynamicStoreCopyValue(store, serviceKey) as? [String: Any],
+              let router = serviceInfo["Router"] as? String else {
+            print("[LocationWatcher] ❌ 라우터 IP 없음")
+            return nil
+        }
+        print("[LocationWatcher] 게이트웨이 IP: \(router)")
+        return router
+    }
+
+    /// 게이트웨이 IP의 MAC 주소를 arp로 조회한다.
+    private nonisolated func fetchGatewayMAC(gatewayIP: String) -> String? {
+        // ARP 캐시가 비어있을 수 있으므로 ping으로 강제 채운다
+        let ping = Process()
+        ping.launchPath = "/sbin/ping"
+        ping.arguments = ["-c", "1", "-W", "1000", gatewayIP]
+        ping.standardOutput = Pipe()
+        ping.standardError = Pipe()
+        try? ping.run()
+        ping.waitUntilExit()
 
         let task = Process()
         task.launchPath = "/usr/sbin/arp"
@@ -100,27 +149,5 @@ class LocationWatcher: ObservableObject {
         let result = mac.isEmpty || mac == "(incomplete)" ? nil : mac
         print("[LocationWatcher] MAC: \(result ?? "nil")")
         return result
-    }
-
-    private func fetchGatewayIP() -> String? {
-        // VPN 환경에서도 동작하도록 en0(Wi-Fi)의 DHCP 라우터 IP를 직접 읽는다
-        let task = Process()
-        task.launchPath = "/usr/sbin/ipconfig"
-        task.arguments = ["getoption", "en0", "router"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-
-        do { try task.run() } catch {
-            print("[LocationWatcher] ❌ ipconfig 실행 실패: \(error)")
-            return nil
-        }
-        task.waitUntilExit()
-
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        print("[LocationWatcher] ipconfig router: \(output)")
-        return output.isEmpty ? nil : output
     }
 }
