@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using RadioButton = System.Windows.Controls.RadioButton;
 using Ilko.Models;
 using Ilko.ViewModels;
 using MessageBox = System.Windows.MessageBox;
@@ -73,7 +74,67 @@ public partial class ProfileEditorWindow : Window
             _monitorItems.Add(new MonitorItem(m, path));
         }
         MonitorList.ItemsSource = _monitorItems;
+
+        // 정렬 방식 라디오 버튼 구성
+        BuildPositionRadios();
+
+        // 오프셋 초기값
+        SliderX.Value = _profile.OffsetX;
+        SliderY.Value = _profile.OffsetY;
+        OffsetXLabel.Text = _profile.OffsetX.ToString();
+        OffsetYLabel.Text = _profile.OffsetY.ToString();
+
+        // Center 모드면 오프셋 섹션 표시
+        if (_profile.Position == WallpaperPosition.Center)
+            OffsetSection.Visibility = Visibility.Visible;
     }
+
+    // ── 정렬 방식 ─────────────────────────────────────────────
+
+    private void BuildPositionRadios()
+    {
+        var positions = new[]
+        {
+            (WallpaperPosition.Fill,    "채우기"),
+            (WallpaperPosition.Fit,     "맞추기"),
+            (WallpaperPosition.Stretch, "늘리기"),
+            (WallpaperPosition.Center,  "가운데"),
+            (WallpaperPosition.Tile,    "타일"),
+        };
+
+        PositionPanel.Children.Clear();
+        foreach (var (pos, label) in positions)
+        {
+            var rb = new RadioButton
+            {
+                Content   = label,
+                Tag       = pos,
+                IsChecked = _profile.Position == pos,
+                GroupName = "WallpaperPosition",
+                Margin    = new Thickness(0, 0, 16, 4),
+            };
+            rb.Checked += OnPositionChecked;
+            PositionPanel.Children.Add(rb);
+        }
+    }
+
+    private void OnPositionChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton { Tag: WallpaperPosition pos })
+        {
+            _profile.Position = pos;
+            OffsetSection.Visibility = pos == WallpaperPosition.Center
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void OnOffsetXChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => OffsetXLabel.Text = ((int)e.NewValue).ToString();
+
+    private void OnOffsetYChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        => OffsetYLabel.Text = ((int)e.NewValue).ToString();
+
+    // ── 네트워크 ──────────────────────────────────────────────
 
     private void OnUseCurrentNetwork(object sender, RoutedEventArgs e)
     {
@@ -90,6 +151,8 @@ public partial class ProfileEditorWindow : Window
         }
     }
 
+    // ── 월페이퍼 선택 ─────────────────────────────────────────
+
     private void OnPickMonitorFile(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement fe && fe.Tag is MonitorItem item)
@@ -97,7 +160,6 @@ public partial class ProfileEditorWindow : Window
             var path = PickImageFile();
             if (path == null) return;
             item.CurrentPath = _vm.ImportWallpaper(path) ?? path;
-            // 리스트 새로고침
             MonitorList.ItemsSource = null;
             MonitorList.ItemsSource = _monitorItems;
             UpdatePreview(item.CurrentPath);
@@ -152,6 +214,8 @@ public partial class ProfileEditorWindow : Window
         catch { }
     }
 
+    // ── 저장 / 취소 ───────────────────────────────────────────
+
     private void OnSave(object sender, RoutedEventArgs e)
     {
         _profile.Name = NameBox.Text.Trim();
@@ -170,10 +234,12 @@ public partial class ProfileEditorWindow : Window
                 _profile.MonitorWallpapers[item.Monitor.DevicePath] = item.CurrentPath;
         }
 
+        // 오프셋 저장
+        _profile.OffsetX = (int)SliderX.Value;
+        _profile.OffsetY = (int)SliderY.Value;
+
         // 최소 하나의 월페이퍼가 있어야 함
-        bool hasAny = !string.IsNullOrEmpty(_profile.WallpaperPath)
-                      || _profile.MonitorWallpapers.Count > 0;
-        if (!hasAny)
+        if (string.IsNullOrEmpty(_profile.WallpaperPath) && _profile.MonitorWallpapers.Count == 0)
         {
             MessageBox.Show("월페이퍼를 하나 이상 선택해주세요.", "알림",
                 MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -28,13 +28,10 @@ public partial class MainWindow : Window
         {
             if (e.PropertyName == nameof(MainViewModel.CurrentNetworkId))
             {
-                NetworkIdText.Text = _vm.CurrentNetworkId ?? "없음";
                 NetworkDot.Fill = _vm.CurrentNetworkId != null
                     ? (System.Windows.Media.Brush)FindResource("SuccessBrush")
                     : (System.Windows.Media.Brush)FindResource("TextDimBrush");
             }
-            if (e.PropertyName == nameof(MainViewModel.ActiveProfile))
-                ActiveProfileText.Text = _vm.ActiveProfile?.Name ?? "없음";
         });
 
         Closing += (_, e) => { e.Cancel = true; Hide(); };

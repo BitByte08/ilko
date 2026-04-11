@@ -15,16 +15,22 @@ public class MainViewModel : INotifyPropertyChanged
 
     private Profile? _activeProfile;
     private string? _currentNetworkId;
-    private Profile? _editingProfile;
-    private bool _isEditing;
 
     public ObservableCollection<Profile> Profiles { get; } = [];
 
     public Profile? ActiveProfile
     {
         get => _activeProfile;
-        set { _activeProfile = value; OnPropertyChanged(); }
+        set
+        {
+            _activeProfile = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ActiveProfileId));
+        }
     }
+
+    /// <summary>현재 활성 프로필 ID — 타일 강조에 사용.</summary>
+    public string? ActiveProfileId => _activeProfile?.Id;
 
     public string? CurrentNetworkId
     {
@@ -32,24 +38,13 @@ public class MainViewModel : INotifyPropertyChanged
         set { _currentNetworkId = value; OnPropertyChanged(); }
     }
 
-    public Profile? EditingProfile
-    {
-        get => _editingProfile;
-        set { _editingProfile = value; OnPropertyChanged(); }
-    }
-
-    public bool IsEditing
-    {
-        get => _isEditing;
-        set { _isEditing = value; OnPropertyChanged(); }
-    }
-
-    // Services exposed for View binding
+    // ── Services ───────────────────────────────────────────────
     public ProfileManager ProfileManager => _profileManager;
     public LocationWatcher LocationWatcher => _locationWatcher;
     public SwitchController SwitchController => _switchController;
     public WallpaperEngine Engine => _engine;
 
+    // ── ctor ───────────────────────────────────────────────────
     public MainViewModel()
     {
         _profileManager = new ProfileManager();
@@ -57,22 +52,15 @@ public class MainViewModel : INotifyPropertyChanged
         _engine = new WallpaperEngine();
         _switchController = new SwitchController(_profileManager, _locationWatcher, _engine);
 
-        _switchController.ActiveProfileChanged += p =>
-        {
-            ActiveProfile = p;
-        };
-
-        _locationWatcher.GatewayMACChanged += mac =>
-        {
-            CurrentNetworkId = mac;
-        };
-
+        _switchController.ActiveProfileChanged += p => { ActiveProfile = p; };
+        _locationWatcher.GatewayMACChanged += mac => { CurrentNetworkId = mac; };
         _profileManager.ProfilesChanged += RefreshProfiles;
 
         RefreshProfiles();
         _locationWatcher.Start();
     }
 
+    // ── Commands ───────────────────────────────────────────────
     public void RefreshProfiles()
     {
         Profiles.Clear();
@@ -80,52 +68,15 @@ public class MainViewModel : INotifyPropertyChanged
             Profiles.Add(p);
     }
 
-    public void SelectProfile(Profile profile)
-    {
-        _switchController.Apply(profile);
-    }
-
-    public void ApplyCurrentNetwork()
-    {
-        _switchController.ApplyCurrentNetwork();
-    }
-
-    public void AddProfile()
-    {
-        EditingProfile = new Profile
-        {
-            Name = "",
-            GatewayMAC = _locationWatcher.CurrentGatewayMAC,
-            WallpaperPath = ""
-        };
-        IsEditing = true;
-    }
-
-    public void EditProfile(Profile profile)
-    {
-        EditingProfile = profile.Clone();
-        IsEditing = true;
-    }
+    public void SelectProfile(Profile profile) => _switchController.Apply(profile);
+    public void ApplyCurrentNetwork() => _switchController.ApplyCurrentNetwork();
 
     public void SaveProfile(Profile profile)
     {
         var isNew = !_profileManager.Profiles.Any(p => p.Id == profile.Id);
-        if (isNew)
-            _profileManager.Add(profile);
-        else
-            _profileManager.Update(profile);
-
-        // 저장 후 항상 즉시 적용
+        if (isNew) _profileManager.Add(profile);
+        else       _profileManager.Update(profile);
         _switchController.ForceApply(profile);
-
-        IsEditing = false;
-        EditingProfile = null;
-    }
-
-    public void CancelEdit()
-    {
-        IsEditing = false;
-        EditingProfile = null;
     }
 
     public void DeleteProfile(Profile profile)
@@ -141,14 +92,8 @@ public class MainViewModel : INotifyPropertyChanged
 
     public string? ImportWallpaper(string sourcePath)
     {
-        try
-        {
-            return _profileManager.ImportWallpaper(sourcePath);
-        }
-        catch
-        {
-            return sourcePath;
-        }
+        try { return _profileManager.ImportWallpaper(sourcePath); }
+        catch { return sourcePath; }
     }
 
     public void Shutdown()

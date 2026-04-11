@@ -1,6 +1,7 @@
 <Application x:Class="Ilko.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Ilko.Converters"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
 
@@ -16,6 +17,11 @@
         <SolidColorBrush x:Key="DangerBrush"      Color="#EF4444"/>
         <SolidColorBrush x:Key="SuccessBrush"     Color="#22C55E"/>
 
+        <!-- ── 컨버터 ─────────────────────────────────── -->
+        <conv:PathToImageConverter    x:Key="PathToImageConverter"/>
+        <conv:IsEqualToBrushConverter x:Key="IsEqualToBrushConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
         <!-- ── 공통 TextBlock ──────────────────────── -->
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -29,23 +35,17 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="8"/>
             <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="FontFamily"      Value="Segoe MDL2 Assets"/>
-            <Setter Property="FontSize"        Value="15"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" CornerRadius="6"
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
-                                              TextElement.FontSize="{TemplateBinding FontSize}"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="#252538"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="#2E2E48"/>
@@ -74,9 +74,8 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
-                                              TextElement.FontSize="{TemplateBinding FontSize}"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -95,10 +94,13 @@
         </Style>
 
         <!-- ── 강조 버튼 (퍼플) ──────────────────── -->
-        <Style x:Key="AccentBtn" TargetType="Button" BasedOn="{StaticResource FlatBtn}">
-            <Setter Property="Background"  Value="{StaticResource AccentBrush}"/>
-            <Setter Property="Foreground"  Value="White"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+        <Style x:Key="AccentBtn" TargetType="Button">
+            <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground"      Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="14,7"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -106,9 +108,8 @@
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
-                                              TextElement.FontSize="{TemplateBinding FontSize}"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -124,11 +125,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-        </Style>
-
-        <!-- ── 위험 아이콘 버튼 ──────────────────── -->
-        <Style x:Key="DangerIconBtn" TargetType="Button" BasedOn="{StaticResource IconBtn}">
-            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
         </Style>
 
         <!-- ── TextBox ────────────────────────────── -->
@@ -154,6 +150,39 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsFocused" Value="True">
                                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── RadioButton (다크 테마) ──────────────── -->
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                <Ellipse x:Name="Outer" Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="1.5" Fill="{StaticResource Surface2Brush}"/>
+                                <Ellipse x:Name="Inner" Width="8" Height="8"
+                                         Fill="{StaticResource AccentBrush}" Visibility="Collapsed"/>
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Outer" Property="Stroke" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Inner" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Outer" Property="Stroke" Value="{StaticResource AccentHoverBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

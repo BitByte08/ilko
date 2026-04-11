@@ -25,12 +25,27 @@ public class Profile
     [JsonPropertyName("monitorWallpapers")]
     public Dictionary<string, string> MonitorWallpapers { get; set; } = [];
 
+    /// <summary>배경화면 정렬 방식.</summary>
+    [JsonPropertyName("position")]
+    public WallpaperPosition Position { get; set; } = WallpaperPosition.Fill;
+
+    /// <summary>가운데(Center) 모드에서 X 오프셋 (픽셀).</summary>
+    [JsonPropertyName("offsetX")]
+    public int OffsetX { get; set; } = 0;
+
+    /// <summary>가운데(Center) 모드에서 Y 오프셋 (픽셀).</summary>
+    [JsonPropertyName("offsetY")]
+    public int OffsetY { get; set; } = 0;
+
     public Profile Clone() => new()
     {
         Id = Id,
         Name = Name,
         GatewayMAC = GatewayMAC,
         WallpaperPath = WallpaperPath,
-        MonitorWallpapers = new Dictionary<string, string>(MonitorWallpapers)
+        MonitorWallpapers = new Dictionary<string, string>(MonitorWallpapers),
+        Position = Position,
+        OffsetX = OffsetX,
+        OffsetY = OffsetY,
     };
 }

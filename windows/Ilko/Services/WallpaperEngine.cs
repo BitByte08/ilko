@@ -1,41 +1,48 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 using Ilko.Models;
 
 namespace Ilko.Services;
 
-/// <summary>
-/// IDesktopWallpaper COM 인터페이스를 통해 모니터별 배경화면을 설정한다.
-/// </summary>
 public class WallpaperEngine
 {
-    // ── COM 인터페이스 ──────────────────────────────────────────
+    // ── COM ─────────────────────────────────────────────────────
     [ComImport, Guid("C2CF3110-460E-4fc1-B9D0-8A1C0C9CC4BD")]
     [ClassInterface(ClassInterfaceType.None)]
     private class DesktopWallpaperClass { }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
 
     [ComImport]
     [Guid("B92B56A9-8B55-4E14-9A89-0199BBB6F93B")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IDesktopWallpaper
     {
-        // vtable[3]
         void SetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string? monitorID,
-                          [MarshalAs(UnmanagedType.LPWStr)] string wallpaper);
-        // vtable[4]
+                          [MarshalAs(UnmanagedType.LPWStr)] string wallpaper);        // vtable[3]
         [return: MarshalAs(UnmanagedType.LPWStr)]
-        string GetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string? monitorID);
-        // vtable[5]
+        string GetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string? monitorID);    // vtable[4]
         [return: MarshalAs(UnmanagedType.LPWStr)]
-        string GetMonitorDevicePathAt(uint monitorIndex);
-        // vtable[6]
-        uint GetMonitorDevicePathCount();
+        string GetMonitorDevicePathAt(uint monitorIndex);                             // vtable[5]
+        uint GetMonitorDevicePathCount();                                             // vtable[6]
+        void GetMonitorRECT([MarshalAs(UnmanagedType.LPWStr)] string monitorID,
+                            out RECT displayRect);                                    // vtable[7]
+        void SetBackgroundColor(uint color);                                          // vtable[8]
+        uint GetBackgroundColor();                                                    // vtable[9]
+        void SetPosition(WallpaperPosition position);                                 // vtable[10]
+        WallpaperPosition GetPosition();                                              // vtable[11]
     }
+
+    private static readonly string TempDir =
+        Path.Combine(Path.GetTempPath(), "ilko_wallpaper");
 
     // ── 공개 API ────────────────────────────────────────────────
 
-    /// <summary>현재 연결된 모니터 목록 반환.</summary>
     public List<MonitorInfo> GetMonitors()
     {
         try
@@ -44,14 +51,12 @@ public class WallpaperEngine
             var count = dw.GetMonitorDevicePathCount();
             var result = new List<MonitorInfo>();
             for (uint i = 0; i < count; i++)
-            {
                 result.Add(new MonitorInfo
                 {
                     Index = (int)i,
                     DevicePath = dw.GetMonitorDevicePathAt(i),
                     FriendlyName = $"모니터 {i + 1}"
                 });
-            }
             return result;
         }
         catch (Exception ex)
@@ -61,70 +66,87 @@ public class WallpaperEngine
         }
     }
 
-    /// <summary>
-    /// 프로필의 MonitorWallpapers를 적용.
-    /// MonitorWallpapers가 비어있으면 WallpaperPath를 전체에 적용.
-    /// </summary>
     public void ApplyProfile(Profile profile)
     {
-        if (profile.MonitorWallpapers.Count > 0)
-        {
-            var monitors = GetMonitors();
-            foreach (var monitor in monitors)
-            {
-                var path = profile.MonitorWallpapers.GetValueOrDefault(monitor.DevicePath)
-                           ?? profile.WallpaperPath;
-                if (!string.IsNullOrEmpty(path))
-                    SetForMonitor(monitor.DevicePath, path);
-            }
-        }
-        else if (!string.IsNullOrEmpty(profile.WallpaperPath))
-        {
-            SetForAll(profile.WallpaperPath);
-        }
-    }
-
-    /// <summary>특정 모니터에 이미지 설정.</summary>
-    public bool SetForMonitor(string monitorDevicePath, string imagePath)
-    {
-        if (!File.Exists(imagePath)) return false;
         try
         {
             var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
-            dw.SetWallpaper(monitorDevicePath, imagePath);
-            Debug.WriteLine($"[WallpaperEngine] {Path.GetFileName(imagePath)} → {monitorDevicePath[..Math.Min(30, monitorDevicePath.Length)]}...");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[WallpaperEngine] SetForMonitor 실패: {ex.Message}");
-            return false;
-        }
-    }
 
-    /// <summary>
-    /// 전체 모니터 각각에 같은 이미지를 설정.
-    /// null로 SetWallpaper 호출 시 스팬 모드가 되므로 모니터별로 루프 처리.
-    /// </summary>
-    public bool SetForAll(string imagePath)
-    {
-        if (!File.Exists(imagePath)) return false;
-        try
-        {
-            var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
+            // 1. 정렬 방식 설정
+            dw.SetPosition(profile.Position);
+
+            // 2. 모니터별 월페이퍼 적용
             var count = dw.GetMonitorDevicePathCount();
+            if (count == 0) return;
+
             for (uint i = 0; i < count; i++)
             {
                 var monitorPath = dw.GetMonitorDevicePathAt(i);
-                dw.SetWallpaper(monitorPath, imagePath);
+
+                // 모니터별 경로 → 없으면 기본 경로
+                profile.MonitorWallpapers.TryGetValue(monitorPath, out var imgPath);
+                imgPath ??= profile.WallpaperPath;
+                if (string.IsNullOrEmpty(imgPath) || !File.Exists(imgPath)) continue;
+
+                // 오프셋 처리 (Center 모드 + 오프셋 있을 때)
+                if (profile.Position == WallpaperPosition.Center
+                    && (profile.OffsetX != 0 || profile.OffsetY != 0))
+                {
+                    dw.GetMonitorRECT(monitorPath, out var rect);
+                    int w = rect.Right - rect.Left;
+                    int h = rect.Bottom - rect.Top;
+                    if (w > 0 && h > 0)
+                        imgPath = CreateOffsetBitmap(imgPath, w, h, profile.OffsetX, profile.OffsetY)
+                                  ?? imgPath;
+                }
+
+                dw.SetWallpaper(monitorPath, imgPath);
+                Debug.WriteLine($"[WallpaperEngine] 모니터 {i + 1}: {Path.GetFileName(imgPath)}");
             }
-            Debug.WriteLine($"[WallpaperEngine] 전체 {count}개 모니터: {Path.GetFileName(imagePath)}");
-            return true;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WallpaperEngine] SetForAll 실패: {ex.Message}");
-            return false;
+            Debug.WriteLine($"[WallpaperEngine] ApplyProfile 실패: {ex.Message}");
+        }
+    }
+
+    public WallpaperPosition GetCurrentPosition()
+    {
+        try
+        {
+            var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
+            return dw.GetPosition();
+        }
+        catch { return WallpaperPosition.Fill; }
+    }
+
+    // ── 내부 유틸 ───────────────────────────────────────────────
+
+    /// <summary>
+    /// 지정한 화면 크기의 캔버스 위에 이미지를 center + offset 위치에 그린 BMP를 반환.
+    /// </summary>
+    private static string? CreateOffsetBitmap(string srcPath, int canvasW, int canvasH,
+                                               int offsetX, int offsetY)
+    {
+        try
+        {
+            Directory.CreateDirectory(TempDir);
+            using var src = Image.FromFile(srcPath);
+            using var bmp = new Bitmap(canvasW, canvasH);
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Color.Black);
+            int x = (canvasW - src.Width) / 2 + offsetX;
+            int y = (canvasH - src.Height) / 2 + offsetY;
+            g.DrawImage(src, x, y, src.Width, src.Height);
+            var dest = Path.Combine(TempDir,
+                $"{Path.GetFileNameWithoutExtension(srcPath)}_off.bmp");
+            bmp.Save(dest, ImageFormat.Bmp);
+            return dest;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WallpaperEngine] CreateOffsetBitmap 실패: {ex.Message}");
+            return null;
         }
     }
 }
