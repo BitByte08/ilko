@@ -102,15 +102,23 @@ public class WallpaperEngine
         }
     }
 
-    /// <summary>전체 모니터에 같은 이미지 설정 (null monitorID = all).</summary>
+    /// <summary>
+    /// 전체 모니터 각각에 같은 이미지를 설정.
+    /// null로 SetWallpaper 호출 시 스팬 모드가 되므로 모니터별로 루프 처리.
+    /// </summary>
     public bool SetForAll(string imagePath)
     {
         if (!File.Exists(imagePath)) return false;
         try
         {
             var dw = (IDesktopWallpaper)new DesktopWallpaperClass();
-            dw.SetWallpaper(null, imagePath);
-            Debug.WriteLine($"[WallpaperEngine] 전체 모니터: {Path.GetFileName(imagePath)}");
+            var count = dw.GetMonitorDevicePathCount();
+            for (uint i = 0; i < count; i++)
+            {
+                var monitorPath = dw.GetMonitorDevicePathAt(i);
+                dw.SetWallpaper(monitorPath, imagePath);
+            }
+            Debug.WriteLine($"[WallpaperEngine] 전체 {count}개 모니터: {Path.GetFileName(imagePath)}");
             return true;
         }
         catch (Exception ex)
