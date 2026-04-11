@@ -53,8 +53,11 @@ class LocationWatcher: ObservableObject {
             return
         }
 
-        // 기본 라우트가 바뀔 때만 알림 (Wi-Fi 전환 = 기본 라우트 변경)
-        let keys = ["State:/Network/Global/IPv4"] as CFArray
+        // 기본 라우트 변경 + en0 링크 끊김 모두 감지
+        let keys = [
+            "State:/Network/Global/IPv4",       // Wi-Fi 전환 / 기본 라우트 변경
+            "State:/Network/Interface/en0/Link" // en0 연결/해제 (Wi-Fi 완전 단절)
+        ] as CFArray
         SCDynamicStoreSetNotificationKeys(store, keys, nil)
 
         let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0)!
