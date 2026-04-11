@@ -447,6 +447,7 @@ struct ProfilesView: View {
         .sheet(item: $editingProfile) { profile in
             ProfileEditorView(
                 profile: profile,
+                isDefaultProfile: profile.gatewayMAC == nil,
                 currentNetworkID: locationWatcher.currentGatewayMAC,
                 onSave: { updated in
                     let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
@@ -876,8 +877,10 @@ struct ProfileRowView: View {
             }
             Spacer()
             Button("편집", action: onEdit)
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
+            if profile.gatewayMAC != nil {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                }
             }
         }
         .padding(.vertical, 4)
@@ -887,6 +890,7 @@ struct ProfileRowView: View {
 // MARK: - Profile Editor Sheet
 struct ProfileEditorView: View {
     @State var profile: Profile
+    let isDefaultProfile: Bool
     let currentNetworkID: String?
     let onSave: (Profile) -> Void
     let onCancel: () -> Void
@@ -903,6 +907,7 @@ struct ProfileEditorView: View {
                 TextField("홈, 카페, 회사…", text: $profile.name)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 200)
+                    .disabled(isDefaultProfile)
             }
 
             // 네트워크
@@ -913,25 +918,27 @@ struct ProfileEditorView: View {
                         .frame(width: 160, alignment: .leading)
                         .font(.system(.body, design: .monospaced))
 
-                    if let mac = currentNetworkID {
-                        if profile.gatewayMAC == mac {
-                            Label("현재 네트워크", systemImage: "checkmark.circle.fill")
+                    if !isDefaultProfile {
+                        if let mac = currentNetworkID {
+                            if profile.gatewayMAC == mac {
+                                Label("현재 네트워크", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Button("현재 네트워크로") {
+                                    profile.gatewayMAC = mac
+                                }
                                 .font(.caption)
-                                .foregroundStyle(.green)
-                        } else {
-                            Button("현재 네트워크로") {
-                                profile.gatewayMAC = mac
+                            }
+                        }
+
+                        if profile.gatewayMAC != nil {
+                            Button("초기화") {
+                                profile.gatewayMAC = nil
                             }
                             .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
-                    }
-
-                    if profile.gatewayMAC != nil {
-                        Button("초기화") {
-                            profile.gatewayMAC = nil
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     }
                 }
             }
