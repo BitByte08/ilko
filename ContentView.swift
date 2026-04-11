@@ -105,6 +105,9 @@ struct ContentView: View {
                         switchController.apply(updated)
                     } else {
                         profileManager.update(updated)
+                        if switchController.activeProfile?.id == updated.id {
+                            switchController.apply(updated)
+                        }
                     }
                     editingProfile = nil
                 },
