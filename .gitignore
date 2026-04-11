@@ -26,3 +26,10 @@ LiveWallpaper.icon/Assets/roller 2.svg
 CLAUDE.md
 PRD.md
 REFACTOR.md
+
+# Windows 빌드 아웃풋
+windows/bin/
+windows/obj/
+
+# Claude Code 내부 파일
+.claude/

@@ -1,5 +1,5 @@
 # ILKO
-<img width="200" height="200" alt="ilko_icon" src="https://github.com/user-attachments/assets/553cbecc-5f88-4f98-bfb2-90eb93b42c11" />
+<img width="200" height="200" alt="ilko_icon" src="assets/icon.png" />
 
 > 네트워크 기반 자동 월페이퍼 전환 — 집에선 덕질, 밖에선 일코
 
@@ -75,13 +75,23 @@ make dmg VERSION=1.0.0
 
 ## Windows
 
-### 설치 (소스 빌드)
+### 설치
 
-**요구사항:** Windows 10 이상, [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+**EXE (권장)**
+
+1. [Releases](../../releases/latest)에서 `ILKO-vX.X.X-windows-x64.exe` 다운로드
+2. 다운받은 EXE 실행 — 설치 불필요, 단독 실행 파일
+3. 시스템 트레이 아이콘 확인
+
+> .NET 런타임 내장 파일이라 별도 설치 없이 바로 실행됩니다.
+
+**소스 빌드**
+
+요구사항: Windows 10 이상, [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ```bash
 git clone https://github.com/BitByte08/ilko.git
-cd ilko/windows/Ilko
+cd ilko/windows
 "C:\Program Files\dotnet\dotnet.exe" run
 ```
 

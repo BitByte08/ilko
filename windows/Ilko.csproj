@@ -12,6 +12,7 @@
     <Version>1.0.0</Version>
     <Description>Location-based wallpaper changer for Windows</Description>
     <LangVersion>latest</LangVersion>
+    <ApplicationIcon Condition="Exists('icon.ico')">icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
