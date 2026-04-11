@@ -448,6 +448,7 @@ struct ProfilesView: View {
             ProfileEditorView(
                 profile: profile,
                 isDefaultProfile: profile.gatewayMAC == nil,
+                existingProfiles: profileManager.profiles,
                 currentNetworkID: locationWatcher.currentGatewayMAC,
                 onSave: { updated in
                     let isNew = !profileManager.profiles.contains(where: { $0.id == updated.id })
@@ -891,11 +892,16 @@ struct ProfileRowView: View {
 struct ProfileEditorView: View {
     @State var profile: Profile
     let isDefaultProfile: Bool
+    let existingProfiles: [Profile]
     let currentNetworkID: String?
     let onSave: (Profile) -> Void
     let onCancel: () -> Void
 
     @State private var thumbnailImage: NSImage?
+
+    private var isDuplicateName: Bool {
+        existingProfiles.contains { $0.id != profile.id && $0.name == profile.name }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -904,10 +910,17 @@ struct ProfileEditorView: View {
 
             // 이름
             LabeledContent("이름") {
-                TextField("홈, 카페, 회사…", text: $profile.name)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 200)
-                    .disabled(isDefaultProfile)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("홈, 카페, 회사…", text: $profile.name)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 200)
+                        .disabled(isDefaultProfile)
+                    if isDuplicateName {
+                        Text("이미 같은 이름의 프로필이 있어요.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
             }
 
             // 네트워크
@@ -967,7 +980,7 @@ struct ProfileEditorView: View {
                 Button("취소", action: onCancel)
                 Button("저장") { onSave(profile) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(profile.name.isEmpty || profile.wallpaperPath.isEmpty)
+                    .disabled(profile.name.isEmpty || profile.wallpaperPath.isEmpty || isDuplicateName)
             }
         }
         .padding(24)
