@@ -9,7 +9,7 @@ XCODE_FLAGS = \
 	CODE_SIGNING_REQUIRED=NO \
 	CODE_SIGNING_ALLOWED=NO
 
-.PHONY: build run clean submodule
+.PHONY: build run log clean submodule
 
 ## 서브모듈 초기화 (최초 1회)
 submodule:
@@ -28,6 +28,10 @@ build: submodule
 ## 빌드 후 바로 실행 (메뉴바에 아이콘 뜨면 성공)
 run: build
 	open "$(APP)"
+
+## 빌드 후 터미널에서 직접 실행 (로그 출력)
+log: build
+	"$(APP)/Contents/MacOS/LiveWallpaper"
 
 ## 빌드 결과물 삭제
 clean:

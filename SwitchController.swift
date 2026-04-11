@@ -14,9 +14,9 @@ class SwitchController: ObservableObject {
         self.profileManager = profileManager
         self.locationWatcher = locationWatcher
 
-        cancellable = locationWatcher.$currentSSID
-            .sink { [weak self] ssid in
-                self?.onSSIDChange(ssid)
+        cancellable = locationWatcher.$currentGatewayMAC
+            .sink { [weak self] mac in
+                self?.onNetworkChange(mac)
             }
     }
 
@@ -25,8 +25,8 @@ class SwitchController: ObservableObject {
         applyProfile(profile)
     }
 
-    private func onSSIDChange(_ ssid: String?) {
-        guard let profile = profileManager.profileFor(ssid: ssid) else { return }
+    private func onNetworkChange(_ mac: String?) {
+        guard let profile = profileManager.profileFor(gatewayMAC: mac) else { return }
         guard profile.id != activeProfile?.id else { return }
         applyProfile(profile)
     }

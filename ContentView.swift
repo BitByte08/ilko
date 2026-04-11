@@ -790,7 +790,7 @@ struct SettingsView: View {
                             .font(.headline)
                         Spacer()
                         Button {
-                            editingProfile = Profile(id: UUID(), name: "", ssid: nil, wallpaperPath: "")
+                            editingProfile = Profile(id: UUID(), name: "", gatewayMAC: locationWatcher.currentNetworkID(), wallpaperPath: "")
                             showProfileEditor = true
                         } label: {
                             Label("추가", systemImage: "plus")
@@ -800,7 +800,7 @@ struct SettingsView: View {
                     ForEach(profileManager.profiles) { profile in
                         ProfileRowView(
                             profile: profile,
-                            currentSSID: locationWatcher.currentSSID,
+                            currentNetworkID: locationWatcher.currentGatewayMAC,
                             onEdit: {
                                 editingProfile = profile
                                 showProfileEditor = true
@@ -818,7 +818,7 @@ struct SettingsView: View {
             if let profile = editingProfile {
                 ProfileEditorView(
                     profile: profile,
-                    currentSSID: locationWatcher.currentSSID,
+                    currentNetworkID: locationWatcher.currentGatewayMAC,
                     onSave: { updated in
                         if profileManager.profiles.contains(where: { $0.id == updated.id }) {
                             profileManager.update(updated)
@@ -1089,7 +1089,7 @@ class WallpaperViewModel: ObservableObject {
 // MARK: - Profile Row
 struct ProfileRowView: View {
     let profile: Profile
-    let currentSSID: String?
+    let currentNetworkID: String?
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -1097,7 +1097,7 @@ struct ProfileRowView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.name).fontWeight(.medium)
-                Text(profile.ssid.map { "SSID: \($0)" } ?? "기본 프로필")
+                Text(profile.gatewayMAC.map { "MAC: \($0)" } ?? "기본 프로필")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1114,7 +1114,7 @@ struct ProfileRowView: View {
 // MARK: - Profile Editor Sheet
 struct ProfileEditorView: View {
     @State var profile: Profile
-    let currentSSID: String?
+    let currentNetworkID: String?
     let onSave: (Profile) -> Void
     let onCancel: () -> Void
 
@@ -1122,12 +1122,6 @@ struct ProfileEditorView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(profile.wallpaperPath.isEmpty ? "프로필 추가" : "프로필 편집")
                 .font(.title2).fontWeight(.bold)
-                .onAppear {
-                    // 새 프로필 추가 시 현재 SSID 자동 입력
-                    if profile.ssid == nil, let ssid = currentSSID {
-                        profile.ssid = ssid
-                    }
-                }
 
             // 이름
             LabeledContent("이름") {
@@ -1136,21 +1130,33 @@ struct ProfileEditorView: View {
                     .frame(width: 200)
             }
 
-            // SSID
-            LabeledContent("Wi-Fi SSID") {
+            // 네트워크
+            LabeledContent("네트워크") {
                 HStack {
-                    TextField("없음 = 기본 프로필", text: Binding(
-                        get: { profile.ssid ?? "" },
-                        set: { profile.ssid = $0.isEmpty ? nil : $0 }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 160)
+                    Text(profile.gatewayMAC ?? "없음 = 기본 프로필")
+                        .foregroundStyle(profile.gatewayMAC == nil ? .secondary : .primary)
+                        .frame(width: 160, alignment: .leading)
+                        .font(.system(.body, design: .monospaced))
 
-                    if let ssid = currentSSID, profile.ssid != ssid {
-                        Button("현재 Wi-Fi로") {
-                            profile.ssid = ssid
+                    if let mac = currentNetworkID {
+                        if profile.gatewayMAC == mac {
+                            Label("현재 네트워크", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("현재 네트워크로") {
+                                profile.gatewayMAC = mac
+                            }
+                            .font(.caption)
+                        }
+                    }
+
+                    if profile.gatewayMAC != nil {
+                        Button("초기화") {
+                            profile.gatewayMAC = nil
                         }
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }

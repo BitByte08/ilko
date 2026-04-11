@@ -1,12 +1,12 @@
 import Combine
 import Foundation
 
-/// ilko 프로필 — SSID 하나에 월페이퍼 파일 하나를 매핑한다.
-/// ssid가 nil이면 기본(일코) 프로필로 동작한다.
+/// ilko 프로필 — 게이트웨이 MAC 하나에 월페이퍼 파일 하나를 매핑한다.
+/// gatewayMAC이 nil이면 기본(일코) 프로필로 동작한다.
 struct Profile: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
-    var ssid: String?        // nil = 기본 프로필 (일치하는 SSID 없을 때 적용)
+    var gatewayMAC: String?  // nil = 기본 프로필 (일치하는 네트워크 없을 때 적용)
     var wallpaperPath: String
 }
 
@@ -52,7 +52,7 @@ class ProfileManager: ObservableObject {
 
         load()
         if profiles.isEmpty {
-            profiles = [Profile(id: UUID(), name: "기본 (일코)", ssid: nil, wallpaperPath: "")]
+            profiles = [Profile(id: UUID(), name: "기본 (일코)", gatewayMAC: nil, wallpaperPath: "")]
             save()
         }
     }
@@ -74,12 +74,12 @@ class ProfileManager: ObservableObject {
         save()
     }
 
-    /// SSID에 맞는 프로필을 반환한다. 없으면 기본 프로필(ssid == nil)을 반환.
-    func profileFor(ssid: String?) -> Profile? {
-        if let ssid, let match = profiles.first(where: { $0.ssid == ssid }) {
+    /// 게이트웨이 MAC에 맞는 프로필을 반환한다. 없으면 기본 프로필(gatewayMAC == nil)을 반환.
+    func profileFor(gatewayMAC: String?) -> Profile? {
+        if let mac = gatewayMAC, let match = profiles.first(where: { $0.gatewayMAC == mac }) {
             return match
         }
-        return profiles.first(where: { $0.ssid == nil })
+        return profiles.first(where: { $0.gatewayMAC == nil })
     }
 
     func save() {

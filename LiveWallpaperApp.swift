@@ -18,7 +18,6 @@
 
 import SwiftUI
 import AppKit
-import ApplicationServices
 import ServiceManagement
 
 let sharedEngine = WallpaperEngine.shared()
@@ -90,10 +89,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
 
-        if !hasAccessibilityAccess() {
-            requestAccessibilityAccess()
-        }
-
         if !isLoginItemEnabled() {
             setLoginItem(enabled: true)
         }
@@ -110,15 +105,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // MARK: Permission Access
-
-func hasAccessibilityAccess() -> Bool {
-    return AXIsProcessTrusted()
-}
-
-func requestAccessibilityAccess() {
-    let options: [String: Bool] = ["AXTrustedCheckOptionPrompt": true]
-    AXIsProcessTrustedWithOptions(options as CFDictionary)
-}
 
 func isLoginItemEnabled() -> Bool {
     return UserDefaults.standard.bool(forKey: UserDefaultsKeys.launchAtLogin)
