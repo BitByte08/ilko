@@ -27,6 +27,17 @@ class SwitchController: ObservableObject {
         applyProfile(profile)
     }
 
+    /// 현재 네트워크에 맞는 프로필을 강제로 적용한다 (이미 활성 중이어도 재적용).
+    func applyCurrentNetwork() {
+        let mac = locationWatcher.currentGatewayMAC
+        guard let profile = profileManager.profileFor(gatewayMAC: mac) else {
+            print("[SwitchController] ❌ 매칭 프로필 없음 (mac: \(mac ?? "nil"))")
+            return
+        }
+        print("[SwitchController] 🔄 강제 적용: \(profile.name)")
+        applyProfile(profile)
+    }
+
     private func onNetworkChange(_ mac: String?) {
         let allProfiles = profileManager.profiles.map { "\($0.name)[\($0.gatewayMAC ?? "기본")]" }.joined(separator: ", ")
         print("[SwitchController] 네트워크 변경 감지: \(mac ?? "nil") | 등록 프로필: \(allProfiles)")

@@ -17,6 +17,12 @@ class LocationWatcher: ObservableObject {
         scheduleCheck()  // 1.5초 후 체크 (ARP 캐시 안정화 대기)
     }
 
+    /// 수동 새로고침 — 디바운스 없이 즉시 네트워크를 체크한다.
+    func refresh() {
+        pendingCheck?.cancel()
+        checkNetwork()
+    }
+
     func stop() {
         pendingCheck?.cancel()
         pendingCheck = nil

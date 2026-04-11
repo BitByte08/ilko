@@ -160,6 +160,8 @@ struct ContentView: View {
     @StateObject private var viewModel = WallpaperViewModel()
     @State private var showSettings = false
     @State private var showProfiles = false
+    @EnvironmentObject var locationWatcher: LocationWatcher
+    @EnvironmentObject var switchController: SwitchController
 
     @Environment(\.dismiss) private var dismiss
     static var didCloseOnLaunch = false
@@ -173,7 +175,10 @@ struct ContentView: View {
                 ToolbarView(
                     showSettings: $showSettings,
                     showProfiles: $showProfiles,
-                    onReload: { viewModel.reloadContent() }
+                    onReload: {
+                        viewModel.reloadContent()
+                        switchController.applyCurrentNetwork()
+                    }
                 )
                 .padding(.horizontal).padding(.top, 24).padding(.bottom, 12)
 
