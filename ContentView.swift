@@ -932,13 +932,6 @@ struct ProfileEditorView: View {
                             }
                         }
 
-                        if profile.gatewayMAC != nil {
-                            Button("초기화") {
-                                profile.gatewayMAC = nil
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
                     }
                 }
             }
