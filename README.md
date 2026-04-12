@@ -10,7 +10,7 @@
 Wi-Fi 게이트웨이를 감지해 장소에 맞는 월페이퍼로 자동 전환하는 앱. **macOS · Windows** 지원.  
 집에선 좋아하는 캐릭터 라이브 월페이퍼, 카페·회사에선 조용한 기본 배경으로
 
-Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill, licensed under GPL v3.
+> Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by thusvill, licensed under GPL v3.
 
 ---
 
@@ -79,9 +79,19 @@ ILKO는 **장소(네트워크)별 월페이퍼 프로필**로 동작합니다.
 앱을 처음 실행하면 "기본 (일코)"라는 프로필이 자동 생성됩니다.
 
 1. 메뉴바 아이콘 클릭 → 설정 열기
-2. 툴바 **👥** 버튼 → 프로필 관리 화면
-3. "기본 (일코)" 프로필 선택 → **편집**
-4. 외출 시 쓸 평범한 배경화면 파일 지정 후 저장
+   <img width="35" height="35" alt="image" src="https://github.com/user-attachments/assets/1cf2eefd-6d08-4f11-a2e1-1e5b60d33e58" />
+
+   <img width="205" height="198" alt="image" src="https://github.com/user-attachments/assets/5a70d6c3-3c66-48a9-ad6c-217ca98c6421" />
+
+3. 툴바 **👥** 버튼 → 프로필 관리 화면
+
+   <img width="187" height="52" alt="image" src="https://github.com/user-attachments/assets/4949d1c9-db7e-43e4-bb49-d04348b35edb" />
+   
+4. "기본 (일코)" 프로필 선택 → **편집**
+   <img width="1824" height="1424" alt="image" src="https://github.com/user-attachments/assets/24dc0dda-1e1d-4a92-a493-f713d6f9a070" />
+   
+6. 외출 시 쓸 평범한 배경화면 파일 지정 후 저장
+   <img width="912" height="712" alt="image" src="https://github.com/user-attachments/assets/671537d4-0e84-4c6c-ae3e-5ef85716a26a" />
 
 **2단계 — 집(오타쿠용) 프로필 추가**
 
@@ -90,7 +100,9 @@ ILKO는 **장소(네트워크)별 월페이퍼 프로필**로 동작합니다.
 3. **네트워크 자동 감지** 버튼 클릭 → 현재 연결된 게이트웨이 MAC이 자동 입력됨
    - 자동 감지가 안 되면: 터미널에서 `netstat -rn | grep default | awk '{print $2}'` 로 게이트웨이 IP 확인 후 `arp <IP>`로 MAC 조회
 4. 오타쿠 배경화면 파일 지정 (mp4/mov/jpg/png)
-5. 저장
+   <img width="1824" height="1424" alt="image" src="https://github.com/user-attachments/assets/3a8af752-1a7d-4309-b13c-b03f61384127" />
+   
+6. 저장
 
 **3단계 — 완료**
 
