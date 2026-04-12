@@ -8,7 +8,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # ── macOS DMG ────────────────────────────────────────────────────────────
+  build-macos:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -18,9 +19,51 @@ jobs:
       - name: Build DMG
         run: make dmg VERSION=${{ github.ref_name }}
 
-      - name: Upload to GitHub Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/ILKO-*.dmg
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
+
+  # ── Windows Installer (Inno Setup) ──────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Generate icon.ico from PNG
+        shell: pwsh
+        run: powershell -File windows/make_icon.ps1
+
+      - name: Publish (self-contained, win-x64)
+        shell: pwsh
+        run: |
+          dotnet publish windows/Ilko.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o windows/dist/publish
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        env:
+          ILKO_VERSION: ${{ github.ref_name }}
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc windows/installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: windows/dist/installer/ILKO-*-windows-x64-setup.exe
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
