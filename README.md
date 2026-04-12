@@ -46,7 +46,7 @@ Based on [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS) by
 **요구사항:** macOS 14.6+, Xcode Command Line Tools
 
 ```bash
-git clone https://github.com/BitByte08/ilko.git
+git clone https://github.com/winshine0326/ilko.git
 cd ilko
 make run
 ```
@@ -90,7 +90,7 @@ make dmg VERSION=1.0.0
 요구사항: Windows 10 이상, [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ```bash
-git clone https://github.com/BitByte08/ilko.git
+git clone https://github.com/winshine0326/ilko.git
 cd ilko/windows
 "C:\Program Files\dotnet\dotnet.exe" run
 ```
