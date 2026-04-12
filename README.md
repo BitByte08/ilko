@@ -1,5 +1,5 @@
 # ILKO
-<img width="3840" height="2160" alt="image" src="https://github.com/user-attachments/assets/563746b9-5627-4205-8f23-21652b40bcc3" />
+<img width="1920" height="1080" alt="ilko_poster" src="https://github.com/user-attachments/assets/db536208-cdf2-4c8b-9b0a-094b4bb97597" />
 
 > 네트워크 기반 자동 월페이퍼 전환 — 집에선 덕질, 밖에선 일코
 
