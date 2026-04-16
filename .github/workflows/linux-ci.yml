@@ -1,0 +1,41 @@
+name: Linux CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'linux/**'
+      - '.github/workflows/linux-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'linux/**'
+      - '.github/workflows/linux-ci.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Sy --noconfirm cmake extra-cmake-modules ninja qt6-base qt6-multimedia
+          pacman -Sy --noconfirm kconfig kcoreaddons ki18n kscreen
+
+      - name: Create build directory
+        run: mkdir -p linux/build
+
+      - name: Configure
+        working-directory: linux/build
+        run: |
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        working-directory: linux/build
+        run: |
+          ninja
+
+      - name: Check binary exists
+        run: test -f linux/build/ilko && echo "Build successful" || exit 1

@@ -1,0 +1,20 @@
+{
+    "KPlugin": {
+        "Id": "ilkovideowallpaper",
+        "Name": "ILKO Video Wallpaper",
+        "Description": "네트워크 기반 자동 월페이퍼 전환 - 영상 월페이퍼 지원",
+        "Icon": "video-television",
+        "Category": "Image",
+        "FormFactor": "desktop",
+        "GenericName": "Video Wallpaper",
+        "Comment": "동영상 및 이미지 월페이퍼 with 자동 네트워크 전환",
+        "Version": "1.0.0",
+        "License": "GPL-3.0-or-later",
+        "Author": "bitbyte08",
+        "Email": "me@bitworkspace.kr",
+        "Website": "https://github.com/BitByte08/ilko"
+    },
+    "X-KDE-PlasmaImageWallpaper-AccentColor": "#3498db",
+    "X-Kde-PluginInfo-Name": "ilkovideowallpaper",
+    "X-Kde-PluginInfo-Category": "Graphics"
+}

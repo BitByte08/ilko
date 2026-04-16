@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=ILKO
+GenericName=Network-based Wallpaper Switcher
+Comment=Automatic wallpaper switching based on network location
+Exec=ilko
+Icon=ilko
+Type=Application
+Categories=Utility;Graphics;
+StartupNotify=true
+Terminal=false
+StartupWMClass=ilko
+X-GNOME-Autostart-enabled=false

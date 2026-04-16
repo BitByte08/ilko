@@ -1,0 +1,30 @@
+# Maintainer: bitbyte08 <me@bitworkspace.kr>
+pkgname=ilko
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Network-based automatic wallpaper switcher for KDE Plasma"
+arch=('x86_64')
+url="https://github.com/BitByte08/ilko"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-multimedia' 'hicolor-icon-theme')
+makedepends=('cmake' 'ninja' 'extra-cmake-modules')
+source=("git+https://github.com/BitByte08/ilko.git")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/ilko/linux"
+    mkdir -p build && cd build
+    cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    ninja
+}
+
+package() {
+    cd "$srcdir/ilko/linux/build"
+    DESTDIR="$pkgdir" ninja install
+
+    install -Dm644 "$srcdir/ilko/linux/data/ilko.png" \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/ilko.png"
+    install -Dm644 "$srcdir/ilko/linux/data/ilko.desktop" \
+        "$pkgdir/usr/share/applications/ilko.desktop"
+}

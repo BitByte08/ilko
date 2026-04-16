@@ -1,0 +1,419 @@
+#include "MainWindow.h"
+
+#include <QApplication>
+#include <QAction>
+#include <QStatusBar>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QHBoxLayout>
+#include <QFormLayout>
+#include <QSlider>
+#include <QComboBox>
+#include <QRegularExpression>
+
+static QString profilesPath() {
+    return QDir::homePath() + "/.ilko/profiles.json";
+}
+
+QList<ProfileData> ProfileData::loadAll() {
+    QList<ProfileData> result;
+    QFile file(profilesPath());
+    if (!file.open(QIODevice::ReadOnly)) return result;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (!doc.isObject()) return result;
+    QJsonArray arr = doc.object()["profiles"].toArray();
+    for (auto v : arr) {
+        auto p = v.toObject();
+        ProfileData d;
+        d.id = p["id"].toString();
+        d.name = p["name"].toString();
+        d.gatewayMac = p["gatewayMac"].toString();
+        d.wallpaperPath = p["wallpaperPath"].toString();
+        d.isDefault = p["isDefault"].toBool(false);
+        result.append(d);
+    }
+    return result;
+}
+
+void ProfileData::saveAll(const QList<ProfileData>& profiles) {
+    QDir().mkpath(QDir::homePath() + "/.ilko");
+    QJsonArray arr;
+    for (const auto& p : profiles) {
+        QJsonObject o;
+        o["id"] = p.id; o["name"] = p.name; o["gatewayMac"] = p.gatewayMac;
+        o["wallpaperPath"] = p.wallpaperPath; o["isDefault"] = p.isDefault;
+        arr.append(o);
+    }
+    QFile file(profilesPath());
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(QJsonObject{{"profiles", arr}}).toJson());
+    }
+}
+
+void ProfileData::ensureDefaultExists() {
+    auto profiles = loadAll();
+    for (const auto& p : profiles) if (p.isDefault) return;
+    ProfileData d;
+    d.id = QUuid::createUuid().toString();
+    d.name = "기본 (일코)";
+    d.isDefault = true;
+    profiles.prepend(d);
+    saveAll(profiles);
+}
+
+// ── MainWindow ─────────────────────────────────────────────
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+{
+    ProfileData::ensureDefaultExists();
+    setupUi();
+    setupTrayIcon();
+    setWindowTitle("ILKO");
+    setWindowIcon(QIcon(":/ilko.png"));
+    resize(900, 650);
+    setMinimumSize(600, 250);
+}
+
+MainWindow::~MainWindow() = default;
+
+void MainWindow::setupUi()
+{
+    auto central = new QWidget(this);
+    setCentralWidget(central);
+    auto layout = new QVBoxLayout(central);
+    layout->setContentsMargins(16, 12, 16, 12);
+
+    // Toolbar: 새로고침 | 프로필, 설정
+    auto toolbar = new QToolBar(this);
+    toolbar->setMovable(false);
+    addToolBar(toolbar);
+    auto reloadAct = toolbar->addAction("새로고침");
+    toolbar->addSeparator();
+    auto profilesAct = toolbar->addAction("프로필");
+    auto settingsAct = toolbar->addAction("설정");
+
+    // Video grid (macOS VideoGridView 와 동일)
+    m_videoGrid = new QListWidget(this);
+    m_videoGrid->setViewMode(QListWidget::IconMode);
+    m_videoGrid->setIconSize(QSize(250, 140));
+    m_videoGrid->setGridSize(QSize(254, 148));
+    m_videoGrid->setSpacing(2);
+    m_videoGrid->setMovement(QListWidget::Static);
+    m_videoGrid->setResizeMode(QListWidget::Adjust);
+    m_videoGrid->setSelectionMode(QListWidget::SingleSelection);
+    layout->addWidget(m_videoGrid, 1);
+
+    // 비어있으면 폴더 선택 버튼 표시 (macOS: videos.isEmpty 일때만)
+    m_selectFolderBtn = new QPushButton("월페이퍼 폴더 선택", this);
+    m_selectFolderBtn->setMinimumHeight(40);
+    layout->addWidget(m_selectFolderBtn);
+    m_selectFolderBtn->hide();
+
+    connect(reloadAct, &QAction::triggered, this, &MainWindow::updateVideoGrid);
+    connect(profilesAct, &QAction::triggered, this, &MainWindow::showProfilesDialog);
+    connect(settingsAct, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+    connect(m_selectFolderBtn, &QPushButton::clicked, this, &MainWindow::selectWallpaperFolder);
+    connect(m_videoGrid, &QListWidget::itemDoubleClicked, this, &MainWindow::onVideoDoubleClicked);
+
+    statusBar()->showMessage("준비");
+}
+
+void MainWindow::setupTrayIcon()
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) return;
+    m_trayIcon = new QSystemTrayIcon(this);
+    m_trayIcon->setIcon(QIcon::fromTheme("video-television"));
+    m_trayMenu = new QMenu(this);
+    m_trayMenu->addAction("열기", this, [this]() { show(); activateWindow(); raise(); });
+    m_trayMenu->addSeparator();
+    m_trayMenu->addAction("종료", this, &MainWindow::onQuit);
+    m_trayIcon->setContextMenu(m_trayMenu);
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::onTrayIconActivated);
+    m_trayIcon->show();
+}
+
+void MainWindow::selectWallpaperFolder()
+{
+    QString folder = QFileDialog::getExistingDirectory(this, "월페이퍼 폴더 선택", QDir::homePath());
+    if (!folder.isEmpty()) {
+        m_currentFolder = folder;
+        updateVideoGrid();
+    }
+}
+
+void MainWindow::updateVideoGrid()
+{
+    m_videoGrid->clear();
+    if (m_currentFolder.isEmpty()) return;
+
+    QDir dir(m_currentFolder);
+    QStringList filters = {"*.mp4", "*.webm", "*.mov", "*.avi", "*.mkv", "*.jpg", "*.jpeg", "*.png", "*.gif"};
+    auto files = dir.entryInfoList(filters, QDir::Files);
+
+    for (const auto& info : files) {
+        auto item = new QListWidgetItem(info.fileName(), m_videoGrid);
+        item->setData(Qt::UserRole, info.filePath());
+        item->setIcon(QIcon::fromTheme("video-x-generic"));
+    }
+    statusBar()->showMessage(QString("%1개 파일").arg(files.size()));
+}
+
+void MainWindow::onVideoDoubleClicked(QListWidgetItem *item)
+{
+    qDebug() << "Set wallpaper:" << item->data(Qt::UserRole).toString();
+}
+
+void MainWindow::showProfilesDialog() { ProfilesDialog(this).exec(); }
+void MainWindow::showSettingsDialog() { SettingsDialog(this).exec(); }
+
+void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason r) {
+    if (r == QSystemTrayIcon::Trigger || r == QSystemTrayIcon::DoubleClick)
+        { show(); activateWindow(); raise(); }
+}
+
+void MainWindow::onQuit() { QCoreApplication::quit(); }
+
+// ── ProfilesDialog (macOS ProfilesView 와 동일) ─────────────
+
+ProfilesDialog::ProfilesDialog(QWidget *parent) : QDialog(parent)
+{
+    setWindowTitle("프로필 관리");
+    resize(500, 400);
+
+    auto layout = new QVBoxLayout(this);
+
+    // Header: 제목 + 추가 버튼
+    auto header = new QHBoxLayout();
+    header->addWidget(new QLabel("<b>프로필 관리</b>", this));
+    header->addStretch();
+    auto addBtn = new QPushButton("추가", this);
+    header->addWidget(addBtn);
+    layout->addLayout(header);
+
+    // Profile list
+    m_list = new QListWidget(this);
+    layout->addWidget(m_list, 1);
+
+    // Footer: 편집, 삭제
+    auto footer = new QHBoxLayout();
+    footer->addStretch();
+    auto editBtn = new QPushButton("편집", this);
+    auto delBtn = new QPushButton("삭제", this);
+    footer->addWidget(editBtn);
+    footer->addWidget(delBtn);
+    layout->addLayout(footer);
+
+    connect(addBtn, &QPushButton::clicked, this, &ProfilesDialog::addProfile);
+    connect(editBtn, &QPushButton::clicked, this, &ProfilesDialog::editSelectedProfile);
+    connect(delBtn, &QPushButton::clicked, this, &ProfilesDialog::deleteSelectedProfile);
+
+    refreshList();
+}
+
+void ProfilesDialog::refreshList()
+{
+    m_list->clear();
+    m_profiles = ProfileData::loadAll();
+    for (const auto& p : m_profiles) {
+        QString text = p.isDefault
+            ? QString("%1").arg(p.name)
+            : QString("%1 - MAC: %2").arg(p.name).arg(p.gatewayMac);
+        auto item = new QListWidgetItem(text, m_list);
+        item->setData(Qt::UserRole, p.id);
+    }
+}
+
+void ProfilesDialog::addProfile()
+{
+    ProfileData d;
+    d.id = QUuid::createUuid().toString();
+    d.isDefault = false;
+
+    QProcess p;
+    p.start("ip", {"neigh", "show", "default"});
+    p.waitForFinished(2000);
+    auto match = QRegularExpression("([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}").match(p.readAllStandardOutput());
+    if (match.hasMatch()) d.gatewayMac = match.captured().toLower();
+
+    ProfileEditDialog dlg(d, true, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        auto profiles = ProfileData::loadAll();
+        profiles.append(dlg.getProfile());
+        ProfileData::saveAll(profiles);
+        refreshList();
+    }
+}
+
+void ProfilesDialog::editSelectedProfile()
+{
+    auto cur = m_list->currentItem();
+    if (!cur) return;
+    QString id = cur->data(Qt::UserRole).toString();
+    auto profiles = ProfileData::loadAll();
+    for (int i = 0; i < profiles.size(); ++i) {
+        if (profiles[i].id == id) {
+            ProfileEditDialog dlg(profiles[i], false, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                profiles[i] = dlg.getProfile();
+                ProfileData::saveAll(profiles);
+                refreshList();
+            }
+            return;
+        }
+    }
+}
+
+void ProfilesDialog::deleteSelectedProfile()
+{
+    auto cur = m_list->currentItem();
+    if (!cur) return;
+    QString id = cur->data(Qt::UserRole).toString();
+    auto profiles = ProfileData::loadAll();
+    for (int i = 0; i < profiles.size(); ++i) {
+        if (profiles[i].id == id) {
+            if (profiles[i].isDefault) return;
+            profiles.removeAt(i);
+            ProfileData::saveAll(profiles);
+            refreshList();
+            return;
+        }
+    }
+}
+
+// ── ProfileEditDialog (macOS ProfileEditorView 와 동일) ─────
+
+ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWidget *parent)
+    : QDialog(parent), m_profile(profile), m_isNew(isNew)
+{
+    setWindowTitle(isNew ? "프로필 추가" : "프로필 편집");
+    setMinimumWidth(460);
+
+    auto layout = new QVBoxLayout(this);
+
+    // 이름
+    auto form = new QFormLayout();
+    m_nameEdit = new QLineEdit(m_profile.name, this);
+    m_nameEdit->setPlaceholderText("홈, 카페, 회사...");
+    form->addRow("이름", m_nameEdit);
+
+    // 네트워크 MAC
+    m_macEdit = new QLineEdit(m_profile.gatewayMac, this);
+    if (m_profile.isDefault) {
+        m_macEdit->setReadOnly(true);
+        m_macEdit->setPlaceholderText("없음 = 기본 프로필");
+    }
+    form->addRow("네트워크", m_macEdit);
+
+    // 월페이퍼
+    auto wpLayout = new QHBoxLayout();
+    m_wallpaperEdit = new QLineEdit(m_profile.wallpaperPath, this);
+    m_wallpaperEdit->setReadOnly(true);
+    m_wallpaperEdit->setPlaceholderText("파일 없음");
+    wpLayout->addWidget(m_wallpaperEdit, 1);
+    auto browseBtn = new QPushButton("선택", this);
+    wpLayout->addWidget(browseBtn);
+    form->addRow("월페이퍼", wpLayout);
+
+    layout->addLayout(form);
+
+    // 미리보기
+    m_previewLabel = new QLabel(this);
+    m_previewLabel->setMinimumHeight(120);
+    m_previewLabel->setMaximumHeight(160);
+    m_previewLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_previewLabel);
+
+    // 버튼
+    auto btns = new QHBoxLayout();
+    btns->addStretch();
+    auto cancelBtn = new QPushButton("취소", this);
+    m_saveBtn = new QPushButton("저장", this);
+    btns->addWidget(cancelBtn);
+    btns->addWidget(m_saveBtn);
+    layout->addLayout(btns);
+
+    connect(browseBtn, &QPushButton::clicked, this, &ProfileEditDialog::selectWallpaper);
+    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(m_saveBtn, &QPushButton::clicked, this, &ProfileEditDialog::save);
+}
+
+ProfileData ProfileEditDialog::getProfile() const { return m_profile; }
+
+void ProfileEditDialog::selectWallpaper()
+{
+    auto file = QFileDialog::getOpenFileName(this, "월페이퍼 선택", QDir::homePath(),
+        "미디어 (*.mp4 *.webm *.mov *.avi *.mkv *.jpg *.jpeg *.png *.gif);;모든 파일 (*)");
+    if (file.isEmpty()) return;
+    m_wallpaperEdit->setText(file);
+    m_profile.wallpaperPath = file;
+    QPixmap px(file);
+    if (!px.isNull())
+        m_previewLabel->setPixmap(px.scaled(m_previewLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+}
+
+void ProfileEditDialog::save()
+{
+    if (m_nameEdit->text().trimmed().isEmpty() || m_profile.wallpaperPath.isEmpty()) return;
+    m_profile.name = m_nameEdit->text().trimmed();
+    m_profile.gatewayMac = m_macEdit->text().trimmed();
+    accept();
+}
+
+// ── SettingsDialog (macOS SettingsView 와 동일) ────────────
+
+SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
+{
+    setWindowTitle("설정");
+    resize(500, 400);
+
+    auto layout = new QVBoxLayout(this);
+    layout->addWidget(new QLabel("<b>설정</b>", this));
+
+    auto form = new QFormLayout();
+
+    // 폴더
+    auto folderRow = new QHBoxLayout();
+    m_folderEdit = new QLineEdit(this);
+    folderRow->addWidget(m_folderEdit, 1);
+    auto folderBtn = new QPushButton("폴더", this);
+    folderRow->addWidget(folderBtn);
+    form->addRow("월페이퍼 폴더", folderRow);
+
+    // 크기 조절
+    m_scaleCombo = new QComboBox(this);
+    m_scaleCombo->addItems({"채우기", "맞추기", "늘리기", "가운데", "높이 채우기"});
+    form->addRow("비디오 크기 조절", m_scaleCombo);
+
+    // 볼륨
+    m_volumeSlider = new QSlider(Qt::Horizontal, this);
+    m_volumeSlider->setRange(0, 100);
+    m_volumeSlider->setValue(100);
+    form->addRow("볼륨", m_volumeSlider);
+
+    layout->addLayout(form);
+    layout->addStretch();
+
+    auto clearBtn = new QPushButton("캐시 삭제", this);
+    layout->addWidget(clearBtn);
+
+    auto closeBtn = new QPushButton("닫기", this);
+    layout->addWidget(closeBtn, 0, Qt::AlignRight);
+
+    connect(folderBtn, &QPushButton::clicked, this, &SettingsDialog::selectFolder);
+    connect(clearBtn, &QPushButton::clicked, this, &SettingsDialog::clearCache);
+    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+}
+
+void SettingsDialog::selectFolder()
+{
+    auto folder = QFileDialog::getExistingDirectory(this, "폴더 선택", QDir::homePath());
+    if (!folder.isEmpty()) m_folderEdit->setText(folder);
+}
+
+void SettingsDialog::clearCache()
+{
+    QDir(QDir::homePath() + "/.ilko/cache").removeRecursively();
+    QMessageBox::information(this, "완료", "캐시가 삭제되었습니다");
+}

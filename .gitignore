@@ -31,5 +31,9 @@ REFACTOR.md
 windows/bin/
 windows/obj/
 
+# Linux 빌드 아웃풋
+linux/build/
+linux/build/**
+
 # Claude Code 내부 파일
 .claude/
