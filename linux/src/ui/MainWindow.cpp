@@ -94,29 +94,23 @@ void MainWindow::setupUi()
     auto profilesAct = toolbar->addAction("프로필");
     auto settingsAct = toolbar->addAction("설정");
 
-    // Video grid (macOS VideoGridView 와 동일)
+    // Profiles grid 
     m_videoGrid = new QListWidget(this);
     m_videoGrid->setViewMode(QListWidget::IconMode);
-    m_videoGrid->setIconSize(QSize(250, 140));
-    m_videoGrid->setGridSize(QSize(254, 148));
-    m_videoGrid->setSpacing(2);
+    m_videoGrid->setIconSize(QSize(200, 120));
+    m_videoGrid->setGridSize(QSize(204, 140));
+    m_videoGrid->setSpacing(10);
     m_videoGrid->setMovement(QListWidget::Static);
     m_videoGrid->setResizeMode(QListWidget::Adjust);
     m_videoGrid->setSelectionMode(QListWidget::SingleSelection);
     layout->addWidget(m_videoGrid, 1);
 
-    // 비어있으면 폴더 선택 버튼 표시 (macOS: videos.isEmpty 일때만)
-    m_selectFolderBtn = new QPushButton("월페이퍼 폴더 선택", this);
-    m_selectFolderBtn->setMinimumHeight(40);
-    layout->addWidget(m_selectFolderBtn);
-    m_selectFolderBtn->hide();
-
     connect(reloadAct, &QAction::triggered, this, &MainWindow::updateVideoGrid);
     connect(profilesAct, &QAction::triggered, this, &MainWindow::showProfilesDialog);
     connect(settingsAct, &QAction::triggered, this, &MainWindow::showSettingsDialog);
-    connect(m_selectFolderBtn, &QPushButton::clicked, this, &MainWindow::selectWallpaperFolder);
     connect(m_videoGrid, &QListWidget::itemDoubleClicked, this, &MainWindow::onVideoDoubleClicked);
 
+    updateVideoGrid();
     statusBar()->showMessage("준비");
 }
 
@@ -134,35 +128,48 @@ void MainWindow::setupTrayIcon()
     m_trayIcon->show();
 }
 
-void MainWindow::selectWallpaperFolder()
-{
-    QString folder = QFileDialog::getExistingDirectory(this, "월페이퍼 폴더 선택", QDir::homePath());
-    if (!folder.isEmpty()) {
-        m_currentFolder = folder;
-        updateVideoGrid();
-    }
-}
-
 void MainWindow::updateVideoGrid()
 {
     m_videoGrid->clear();
-    if (m_currentFolder.isEmpty()) return;
-
-    QDir dir(m_currentFolder);
-    QStringList filters = {"*.mp4", "*.webm", "*.mov", "*.avi", "*.mkv", "*.jpg", "*.jpeg", "*.png", "*.gif"};
-    auto files = dir.entryInfoList(filters, QDir::Files);
-
-    for (const auto& info : files) {
-        auto item = new QListWidgetItem(info.fileName(), m_videoGrid);
-        item->setData(Qt::UserRole, info.filePath());
-        item->setIcon(QIcon::fromTheme("video-x-generic"));
+    
+    // Load and display profiles
+    auto profiles = ProfileData::loadAll();
+    
+    for (const auto& profile : profiles) {
+        QString displayName = profile.isDefault 
+            ? profile.name 
+            : QString("%1\n%2").arg(profile.name).arg(profile.gatewayMac);
+        
+        auto item = new QListWidgetItem(displayName, m_videoGrid);
+        item->setData(Qt::UserRole, profile.id);
+        item->setIcon(QIcon::fromTheme("network-wireless"));
     }
-    statusBar()->showMessage(QString("%1개 파일").arg(files.size()));
+    
+    statusBar()->showMessage(QString("%1개 프로필").arg(profiles.size()));
 }
 
 void MainWindow::onVideoDoubleClicked(QListWidgetItem *item)
 {
-    qDebug() << "Set wallpaper:" << item->data(Qt::UserRole).toString();
+    QString profileId = item->data(Qt::UserRole).toString();
+    auto profiles = ProfileData::loadAll();
+    
+    for (const auto& p : profiles) {
+        if (p.id == profileId) {
+            ProfileEditDialog dlg(p, false, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                auto updated = dlg.getProfile();
+                for (int i = 0; i < profiles.size(); ++i) {
+                    if (profiles[i].id == profileId) {
+                        profiles[i] = updated;
+                        break;
+                    }
+                }
+                ProfileData::saveAll(profiles);
+                updateVideoGrid();
+            }
+            return;
+        }
+    }
 }
 
 void MainWindow::showProfilesDialog() { ProfilesDialog(this).exec(); }

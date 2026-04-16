@@ -17,8 +17,6 @@ BrewReleases/**
 project.yml
 LiveWallpaper.icon/Assets/roller 2.svg
 LiveWallpaper.icon/icon.json
-LiveWallpaper.icon/icon.json
-LiveWallpaper.icon/Assets/roller 2.svg
 /LiveWallpaper.icon
 /AppIcon.icon
 
@@ -27,13 +25,35 @@ CLAUDE.md
 PRD.md
 REFACTOR.md
 
-# Windows 빌드 아웃풋
+# macOS
+macos/.build/
+macos/dist/
+
+# Windows
 windows/bin/
 windows/obj/
 
-# Linux 빌드 아웃풋
+# Linux
 linux/build/
-linux/build/**
+linux/build/*
+linux/dist/
+linux/pkg/
+linux/.qt/
+linux/.part/
+linux/cmake_install.cmake
+linux/Makefile
+linux/src/Makefile
+linux/src/cmake_install.cmake
+linux/ilko/
+linux/plasma-smart-video-wallpaper-reborn-2.12.0.tar.gz
+*.pkg.tar.zst
+*.pkg.tar
 
-# Claude Code 내부 파일
+# Dev tools
 .claude/
+.contexty/
+contexty.log
+plasma6-wallpapers-smart-video-wallpaper-reborn/
+
+# Test scripts
+linux/test-wallpaper.sh

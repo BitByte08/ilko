@@ -41,7 +41,6 @@ private slots:
     void onQuit();
     void showSettingsDialog();
     void showProfilesDialog();
-    void selectWallpaperFolder();
     void updateVideoGrid();
     void onVideoDoubleClicked(QListWidgetItem*);
 private:
@@ -50,8 +49,6 @@ private:
     QSystemTrayIcon *m_trayIcon = nullptr;
     QMenu *m_trayMenu = nullptr;
     QListWidget *m_videoGrid = nullptr;
-    QPushButton *m_selectFolderBtn = nullptr;
-    QString m_currentFolder;
 };
 
 class ProfilesDialog : public QDialog {
