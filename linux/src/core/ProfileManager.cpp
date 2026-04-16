@@ -7,10 +7,13 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QUuid>
+#include <QFileInfo>
+#include <QDateTime>
+#include <QProcess>
 
 ProfileManager::ProfileManager(QObject *parent)
     : QObject(parent)
-    , m_configPath(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + "/profiles.json")
+    , m_configPath(QDir::homePath() + "/.ilko/profiles.json")
 {
 }
 
@@ -30,7 +33,7 @@ void ProfileManager::load()
         defaultProfile.isDefault = true;
         m_profiles.append(defaultProfile);
         
-        QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation));
+        QDir().mkpath(QDir::homePath() + "/.ilko");
         save();
         return;
     }
@@ -62,6 +65,7 @@ void ProfileManager::load()
         profile.wallpaperPath = p.value("wallpaperPath").toString();
         profile.thumbnailPath = p.value("thumbnailPath").toString();
         profile.isDefault = p.value("isDefault").toBool(false);
+        profile.targetFps = p.value("targetFps").toInt(30);
         m_profiles.append(profile);
     }
 }
@@ -80,11 +84,12 @@ void ProfileManager::save()
         profile.insert("wallpaperPath", p.wallpaperPath);
         profile.insert("thumbnailPath", p.thumbnailPath);
         profile.insert("isDefault", p.isDefault);
+        profile.insert("targetFps", p.targetFps);
         profilesArray.append(profile);
     }
     obj.insert("profiles", profilesArray);
 
-    QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation));
+    QDir().mkpath(QDir::homePath() + "/.ilko");
     
     QFile file(m_configPath);
     if (file.open(QIODevice::WriteOnly)) {
@@ -141,4 +146,61 @@ void ProfileManager::removeProfile(const QString &id)
     m_profiles = newList;
     save();
     emit profilesChanged();
+}
+
+QString ProfileManager::importWallpaper(const QString &sourcePath)
+{
+    if (sourcePath.isEmpty()) return {};
+
+    QDir().mkpath(wallpapersDir());
+
+    QFileInfo fi(sourcePath);
+    QString ext = fi.suffix();
+    if (ext.isEmpty()) ext = "dat";
+
+    QString baseName = fi.completeBaseName();
+    QString destPath = wallpapersDir() + "/" + baseName + "." + ext;
+
+    if (QFile::exists(destPath)) {
+        if (fi.absoluteFilePath() == QFileInfo(destPath).absoluteFilePath()) {
+            return destPath;
+        }
+        QString uniqueName = baseName + "_" + QUuid::createUuid().toString(QUuid::Id128).left(8) + "." + ext;
+        destPath = wallpapersDir() + "/" + uniqueName;
+    }
+
+    if (QFile::copy(sourcePath, destPath)) {
+        QFile::setPermissions(destPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
+        return destPath;
+    }
+
+    return sourcePath;
+}
+
+void ProfileManager::setCurrentWallpaper(const QString &wallpaperPath, const QString &profileId)
+{
+    QDir().mkpath(ilkoDir());
+
+    QJsonObject obj;
+    obj["wallpaperFile"] = wallpaperPath;
+    obj["profileId"] = profileId;
+    obj["timestamp"] = QDateTime::currentDateTime().toSecsSinceEpoch();
+
+    QFile file(ilkoDir() + "/current_wallpaper.json");
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+QString ProfileManager::currentWallpaperPath()
+{
+    QFile file(ilkoDir() + "/current_wallpaper.json");
+    if (!file.open(QIODevice::ReadOnly)) return {};
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    if (!doc.isObject()) return {};
+    return doc.object().value("wallpaperFile").toString();
 }

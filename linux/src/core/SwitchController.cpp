@@ -1,10 +1,14 @@
 #include "SwitchController.h"
 
 #include <QProcess>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonArray>
 #include <QDebug>
 
 #include "ProfileManager.h"
 #include "NetworkWatcher.h"
+#include "WallpaperDBusService.h"
 
 SwitchController::SwitchController(ProfileManager *profileManager,
                                    NetworkWatcher *networkWatcher,
@@ -14,6 +18,8 @@ SwitchController::SwitchController(ProfileManager *profileManager,
     , m_networkWatcher(networkWatcher)
     , m_currentProfileId()
     , m_running(false)
+    , m_dbusService(nullptr)
+    , m_fullscreenTimer(new QTimer(this))
 {
     if (m_networkWatcher) {
         connect(m_networkWatcher, &NetworkWatcher::networkChanged,
@@ -21,6 +27,11 @@ SwitchController::SwitchController(ProfileManager *profileManager,
         connect(m_networkWatcher, &NetworkWatcher::connectionStateChanged,
                 this, &SwitchController::onConnectionStateChanged);
     }
+    
+    m_dbusService = new ilko::WallpaperDBusService(this);
+
+    connect(m_fullscreenTimer, &QTimer::timeout, this, &SwitchController::checkFullscreen);
+    m_fullscreenTimer->start(3000);
 }
 
 SwitchController::~SwitchController() = default;
@@ -61,6 +72,14 @@ void SwitchController::setWallpaperByMac(const QString &mac)
 {
     if (!m_profileManager) return;
 
+    // 프로필 리로드 (UI에서 변경했을 수 있음)
+    m_profileManager->load();
+
+    if (mac.isEmpty()) {
+        setDefaultWallpaper();
+        return;
+    }
+
     Profile profile = m_profileManager->profileForMac(mac);
     if (profile.id.isEmpty()) {
         setDefaultWallpaper();
@@ -87,6 +106,27 @@ void SwitchController::setWallpaper(const QString &profileId)
     emit error(QStringLiteral("Profile not found: %1").arg(profileId));
 }
 
+void SwitchController::checkFullscreen()
+{
+    QProcess p;
+    p.start("bash", QStringList{"-c", "xprop -id $(xprop -root _NET_ACTIVE_WINDOW | cut -d' ' -f5) _NET_WM_STATE 2>/dev/null | grep -q _NET_WM_STATE_FULLSCREEN && echo fullscreen || echo normal"});
+    if (!p.waitForFinished(2000)) {
+        p.kill();
+        p.waitForFinished(500);
+    }
+    bool isFullscreen = p.readAllStandardOutput().trimmed() == "fullscreen";
+
+    QJsonDocument doc;
+    QJsonArray arr;
+    if (isFullscreen) arr.append("fullscreen");
+    doc.setArray(arr);
+
+    QFile file(ProfileManager::ilkoDir() + "/fullscreen_state.json");
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(doc.toJson());
+    }
+}
+
 void SwitchController::setDefaultWallpaper()
 {
     if (!m_profileManager) return;
@@ -107,12 +147,58 @@ void SwitchController::applyWallpaper(const QString &wallpaperPath)
         return;
     }
 
-    QProcess process;
-    process.start("gsettings", QStringList{
-        "set", "org.gnome.desktop.background", "picture-uri",
-        "file://" + wallpaperPath
-    });
-    process.waitForFinished(1000);
+    int targetFps = 30;
+    for (const Profile &p : m_profileManager->profiles()) {
+        if (p.id == m_currentProfileId) {
+            targetFps = p.targetFps > 0 ? p.targetFps : 30;
+            break;
+        }
+    }
+
+    ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
+    
+    QFileInfo fi(wallpaperPath);
+    QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
+    
+    if (videoExts.contains(fi.suffix().toLower()) && !wallpaperPath.contains("_h265")) {
+        QProcess *ffmpeg = new QProcess(this);
+        QString outputPath = wallpaperPath.left(wallpaperPath.lastIndexOf('.')) + "_h265.mp4";
+        
+        QStringList args;
+        args << "-i" << wallpaperPath
+             << "-c:v" << "libx265"
+             << "-preset" << "faster"
+             << "-crf" << "28"
+             << "-r" << QString::number(targetFps)
+             << "-c:a" << "aac"
+             << "-b:a" << "128k"
+             << "-threads" << "0"
+             << "-y"
+             << outputPath;
+        
+        connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, ffmpeg, wallpaperPath, outputPath](int exitCode, QProcess::ExitStatus) {
+            if (exitCode == 0 && QFile::exists(outputPath)) {
+                QFile::remove(wallpaperPath);
+                QFile::rename(outputPath, wallpaperPath);
+                qDebug() << "Video converted to H.265:" << wallpaperPath;
+                
+                ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
+                
+                if (m_dbusService) {
+                    m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
+                }
+            }
+            ffmpeg->deleteLater();
+        });
+        
+        ffmpeg->start("ffmpeg", args);
+        qDebug() << "Started H.265 conversion in background:" << wallpaperPath;
+    }
+    
+    if (m_dbusService) {
+        m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
+    }
 
     qDebug() << "Wallpaper set to:" << wallpaperPath;
 }

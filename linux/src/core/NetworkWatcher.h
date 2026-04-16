@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QDBusInterface>
 
 class NetworkWatcher : public QObject
 {
@@ -24,12 +25,14 @@ signals:
     void connectionStateChanged(bool connected);
 
 private slots:
+    void onNMPropertiesChanged(const QString &interface, const QVariantMap &changed, const QStringList &invalidated);
     void checkNetwork();
 
 private:
     QString getGatewayMac();
     bool parseArpOutput(const QString &output, QString &mac);
 
+    QDBusInterface *m_nmIface;
     QTimer *m_timer;
     QString m_currentGatewayMac;
     QString m_currentSsid;

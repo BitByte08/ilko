@@ -2,9 +2,6 @@
 
 #include <QDir>
 #include <QStandardPaths>
-#include <KConfig>
-#include <KConfigGroup>
-#include <KSharedConfig>
 
 #include "ProfileManager.h"
 #include "NetworkWatcher.h"
@@ -44,6 +41,11 @@ void Application::initialize()
         d->networkWatcher.get()
     );
     d->switchController->start();
+}
+
+SwitchController *Application::switchController() const
+{
+    return d->switchController.get();
 }
 
 }

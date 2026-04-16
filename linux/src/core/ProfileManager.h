@@ -4,6 +4,7 @@
 #include <QString>
 #include <QList>
 #include <QUrl>
+#include <QDir>
 
 struct Profile
 {
@@ -13,6 +14,7 @@ struct Profile
     QString wallpaperPath;
     QString thumbnailPath;
     bool isDefault;
+    int targetFps = 30;
 
     bool isVideo() const;
     QStringList supportedFormats() const;
@@ -38,6 +40,12 @@ public:
     void removeProfile(const QString &id);
 
     QString configPath() const { return m_configPath; }
+
+    static QString ilkoDir() { return QDir::homePath() + "/.ilko"; }
+    static QString wallpapersDir() { return ilkoDir() + "/wallpapers"; }
+    static QString importWallpaper(const QString &sourcePath);
+    static void setCurrentWallpaper(const QString &wallpaperPath, const QString &profileId);
+    static QString currentWallpaperPath();
 
 signals:
     void profilesChanged();

@@ -3,6 +3,8 @@
 #include <QObject>
 #include <memory>
 
+class SwitchController;
+
 namespace ilko {
 
 class Application : public QObject
@@ -14,6 +16,8 @@ public:
     ~Application();
 
     void initialize();
+
+    SwitchController *switchController() const;
 
 private:
     class Impl;

@@ -2,9 +2,14 @@
 
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 class ProfileManager;
 class NetworkWatcher;
+
+namespace ilko {
+class WallpaperDBusService;
+}
 
 class SwitchController : public QObject
 {
@@ -24,6 +29,7 @@ public:
 public slots:
     void setWallpaper(const QString &profileId);
     void setWallpaperByMac(const QString &mac);
+    void setDefaultWallpaper();
 
 signals:
     void wallpaperChanged(const QString &profileId);
@@ -32,13 +38,15 @@ signals:
 private slots:
     void onNetworkChanged(const QString &gatewayMac, const QString &ssid);
     void onConnectionStateChanged(bool connected);
+    void checkFullscreen();
 
 private:
     void applyWallpaper(const QString &wallpaperPath);
-    void setDefaultWallpaper();
 
     ProfileManager *m_profileManager;
     NetworkWatcher *m_networkWatcher;
     QString m_currentProfileId;
     bool m_running;
+    ilko::WallpaperDBusService *m_dbusService;
+    QTimer *m_fullscreenTimer;
 };
