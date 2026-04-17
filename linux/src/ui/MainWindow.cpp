@@ -10,9 +10,47 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QRegularExpression>
+#include <QFileInfo>
 
 static QString profilesPath() {
     return QDir::homePath() + "/.ilko/profiles.json";
+}
+
+static const QStringList kVideoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
+
+// Returns a scaled thumbnail for a wallpaper path.
+// Videos: extracts one frame via ffmpeg, cached in ~/.ilko/thumbnails/<id>.jpg
+// Images: loads directly from file
+static QPixmap wallpaperThumbnail(const QString &wallpaperPath, const QString &profileId, const QSize &size)
+{
+    if (wallpaperPath.isEmpty()) return {};
+
+    QFileInfo fi(wallpaperPath);
+    if (!fi.exists()) return {};
+
+    QString sourceForPixmap = wallpaperPath;
+
+    if (kVideoExts.contains(fi.suffix().toLower())) {
+        QString thumbDir = QDir::homePath() + "/.ilko/thumbnails";
+        QString thumbPath = thumbDir + "/" + profileId + ".jpg";
+
+        if (!QFile::exists(thumbPath)) {
+            QDir().mkpath(thumbDir);
+            QProcess p;
+            // Seek to 1 second before opening to avoid black frames
+            p.start("ffmpeg", {"-ss", "1", "-i", wallpaperPath,
+                               "-vframes", "1", "-q:v", "3", "-y", thumbPath});
+            p.waitForFinished(8000);
+        }
+
+        if (!QFile::exists(thumbPath)) return {};
+        sourceForPixmap = thumbPath;
+    }
+
+    QPixmap px(sourceForPixmap);
+    if (px.isNull()) return {};
+    return px.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
+             .copy(0, 0, size.width(), size.height());
 }
 
 QList<ProfileData> ProfileData::loadAll() {
@@ -138,13 +176,18 @@ void MainWindow::updateVideoGrid()
     auto profiles = ProfileData::loadAll();
     
     for (const auto& profile : profiles) {
-        QString displayName = profile.isDefault 
-            ? profile.name 
+        QString displayName = profile.isDefault
+            ? profile.name
             : QString("%1\n%2").arg(profile.name).arg(profile.gatewayMac);
-        
+
         auto item = new QListWidgetItem(displayName, m_videoGrid);
         item->setData(Qt::UserRole, profile.id);
-        item->setIcon(QIcon::fromTheme("network-wireless"));
+
+        QPixmap thumb = wallpaperThumbnail(profile.wallpaperPath, profile.id, QSize(200, 120));
+        if (!thumb.isNull())
+            item->setIcon(QIcon(thumb));
+        else
+            item->setIcon(QIcon::fromTheme("image-missing"));
     }
     
     statusBar()->showMessage(QString("%1개 프로필").arg(profiles.size()));
@@ -203,6 +246,7 @@ ProfilesDialog::ProfilesDialog(QWidget *parent) : QDialog(parent)
 
     // Profile list
     m_list = new QListWidget(this);
+    m_list->setIconSize(QSize(64, 40));
     layout->addWidget(m_list, 1);
 
     // Footer: 편집, 삭제
@@ -227,10 +271,14 @@ void ProfilesDialog::refreshList()
     m_profiles = ProfileData::loadAll();
     for (const auto& p : m_profiles) {
         QString text = p.isDefault
-            ? QString("%1").arg(p.name)
-            : QString("%1 - MAC: %2").arg(p.name).arg(p.gatewayMac);
+            ? p.name
+            : QString("%1\nMAC: %2").arg(p.name).arg(p.gatewayMac);
         auto item = new QListWidgetItem(text, m_list);
         item->setData(Qt::UserRole, p.id);
+
+        QPixmap thumb = wallpaperThumbnail(p.wallpaperPath, p.id, QSize(64, 40));
+        if (!thumb.isNull())
+            item->setIcon(QIcon(thumb));
     }
 }
 
@@ -346,7 +394,13 @@ ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWi
     m_previewLabel->setMinimumHeight(120);
     m_previewLabel->setMaximumHeight(160);
     m_previewLabel->setAlignment(Qt::AlignCenter);
-    m_previewLabel->setText("미리보기 없음");
+    {
+        QPixmap thumb = wallpaperThumbnail(m_profile.wallpaperPath, m_profile.id, QSize(320, 160));
+        if (!thumb.isNull())
+            m_previewLabel->setPixmap(thumb);
+        else
+            m_previewLabel->setText("미리보기 없음");
+    }
     layout->addWidget(m_previewLabel);
 
     // 버튼
@@ -438,7 +492,17 @@ void ProfileEditDialog::startConversion(const QString &sourcePath)
         if (exitCode == 0 && QFile::exists(outputPath)) {
             m_profile.wallpaperPath = outputPath;
             m_wallpaperEdit->setText(outputPath);
-            m_previewLabel->setText("변환 완료 ✓");
+
+            // Regenerate thumbnail cache for updated video
+            QString thumbDir = QDir::homePath() + "/.ilko/thumbnails";
+            QString thumbPath = thumbDir + "/" + m_profile.id + ".jpg";
+            QFile::remove(thumbPath);  // remove stale thumb so it gets regenerated
+
+            QPixmap thumb = wallpaperThumbnail(outputPath, m_profile.id, QSize(320, 160));
+            if (!thumb.isNull())
+                m_previewLabel->setPixmap(thumb);
+            else
+                m_previewLabel->setText("변환 완료 ✓");
         } else if (exitCode != 0) {
             QFile::remove(outputPath);
             QMessageBox::warning(this, "변환 실패",
