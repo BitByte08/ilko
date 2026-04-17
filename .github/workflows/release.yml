@@ -89,7 +89,7 @@ jobs:
           VERSION="${VERSION#v}"
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           rm -rf build pkg
-          makepkg -sf
+          makepkg -sf --asroot
 
       - name: Get package filename
         id: pkgfile
