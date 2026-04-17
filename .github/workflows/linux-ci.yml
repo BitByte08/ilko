@@ -2,12 +2,14 @@ name: Linux CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'linux/**'
       - '.github/workflows/linux-ci.yml'
+    tags:
+      - 'v*'
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - 'linux/**'
       - '.github/workflows/linux-ci.yml'
@@ -39,3 +41,37 @@ jobs:
 
       - name: Check binary exists
         run: test -f linux/build/ilko && echo "Build successful" || exit 1
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Sy --noconfirm cmake extra-cmake-modules ninja qt6-base qt6-multimedia
+          pacman -Sy --noconfirm kconfig kcoreaddons ki18n kscreen
+
+      - name: Build package
+        working-directory: linux
+        run: |
+          rm -rf build
+          makepkg -sf
+
+      - name: Get package filename
+        id: pkgfile
+        working-directory: linux
+        run: |
+          echo "filename=$(ls ilko-*.pkg.tar.zst)" >> $GITHUB_OUTPUT
+
+      - name: Upload release artifact
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            linux/${{ steps.pkgfile.outputs.filename }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
