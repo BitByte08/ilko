@@ -1,17 +1,22 @@
 import QtQuick
 import QtMultimedia
-import QtCore
 import org.kde.plasma.plasmoid
 
 WallpaperItem {
     id: root
 
-    // Daemon JSON is authoritative; do not init from Plasma's own config.
-    // pollWallpaper() on Component.onCompleted will set the correct value.
-    property string wallpaperSource: ""
-    property int lastTimestamp: 0
-    property bool playerPaused: false
-    property double playerRate: 1.0
+    // Daemon pushes wallpaperFile to Plasma config via PlasmaShell.evaluateScript.
+    // Reading root.configuration.*  requires no env vars or XHR.
+    property string wallpaperSource: {
+        var f = root.configuration.wallpaperFile || ""
+        if (!f) return ""
+        // Ensure file:// URL with encoded special chars ({} in UUIDs)
+        return f.startsWith("file://") ? f : encodeURI("file://" + f)
+    }
+
+    property bool playerPaused: root.configuration.playerPaused  || false
+    property double playerRate:  root.configuration.playerRate    || 1.0
+
     property bool isVideo: {
         var f = wallpaperSource
         if (!f || f === "") return false
@@ -30,58 +35,6 @@ WallpaperItem {
         "stretch": Image.Stretch,
         "preserveAspectCrop": Image.PreserveAspectCrop
     })
-
-    // Poll daemon-written control files every 2 seconds
-    Timer {
-        id: poller
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: { pollWallpaper(); pollPlayerControl(); }
-    }
-
-    function pollWallpaper() {
-        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/current_wallpaper.json"
-        var xhr = new XMLHttpRequest()
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (xhr.responseText === "") {
-                console.log("ILKO: XHR returned empty — QML_XHR_ALLOW_FILE_READ=1 not set?", path)
-                return
-            }
-            try {
-                var data = JSON.parse(xhr.responseText)
-                var ts = data.timestamp || 0
-                if (ts !== root.lastTimestamp && data.wallpaperFile) {
-                    root.lastTimestamp = ts
-                    var f = data.wallpaperFile
-                    var url = f.startsWith("file://") ? f : encodeURI("file://" + f)
-                    console.log("ILKO: wallpaper →", url)
-                    root.wallpaperSource = url
-                }
-            } catch (e) {
-                console.log("ILKO: JSON parse error:", e)
-            }
-        }
-        xhr.open("GET", "file://" + path)
-        xhr.send()
-    }
-
-    function pollPlayerControl() {
-        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/player_control.json"
-        var xhr = new XMLHttpRequest()
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE && xhr.responseText !== "") {
-                try {
-                    var data = JSON.parse(xhr.responseText)
-                    root.playerPaused = data.paused || false
-                    root.playerRate = data.playbackRate || 1.0
-                } catch (e) {}
-            }
-        }
-        xhr.open("GET", "file://" + path)
-        xhr.send()
-    }
 
     onPlayerPausedChanged: applyPlayerState()
     onPlayerRateChanged:   applyPlayerState()
@@ -111,7 +64,7 @@ WallpaperItem {
     MediaPlayer {
         id: mediaPlayer
         videoOutput: videoOutput
-        // No AudioOutput — skipping audio decode saves CPU (wallpaper audio is always silent)
+        // No AudioOutput — skipping audio decode saves CPU
         source: isVideo ? wallpaperSource : ""
         loops: MediaPlayer.Infinite
         onMediaStatusChanged: {
@@ -131,8 +84,6 @@ WallpaperItem {
     }
 
     Component.onCompleted: {
-        pollWallpaper()
-        pollPlayerControl()
         console.log("ILKO wallpaper plugin started, source:", wallpaperSource)
     }
 }

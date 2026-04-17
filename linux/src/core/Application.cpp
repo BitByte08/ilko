@@ -125,16 +125,46 @@ void Application::onChargingChanged(bool charging)
     updatePlayerControl();
 }
 
+static void plasmaWritePlayerControl(bool paused, double rate)
+{
+    QDBusInterface iface(
+        QStringLiteral("org.kde.plasmashell"),
+        QStringLiteral("/PlasmaShell"),
+        QStringLiteral("org.kde.PlasmaShell"),
+        QDBusConnection::sessionBus()
+    );
+    if (!iface.isValid()) return;
+
+    const QString script = QStringLiteral(
+        "var all=desktops();"
+        "for(var i=0;i<all.length;i++){"
+        "var d=all[i];"
+        "if(d.wallpaperPlugin===\"org.bssm.ilko.video\"){"
+        "d.currentConfigGroup=[\"Wallpaper\",\"org.bssm.ilko.video\",\"General\"];"
+        "d.writeConfig(\"playerPaused\",%1);"
+        "d.writeConfig(\"playerRate\",%2);"
+        "}}"
+    ).arg(paused ? QStringLiteral("true") : QStringLiteral("false"))
+     .arg(rate);
+
+    iface.asyncCall(QStringLiteral("evaluateScript"), script);
+}
+
 void Application::updatePlayerControl()
 {
+    bool paused;
+    double rate;
+
     if (d->screenLocked) {
-        ProfileManager::writePlayerControl(true, 1.0, QStringLiteral("screen_locked"));
+        paused = true;  rate = 1.0;
     } else if (d->onBattery) {
-        // Match macOS behaviour: throttle to 0.75x on battery, don't hard-pause
-        ProfileManager::writePlayerControl(false, 0.75, QStringLiteral("battery"));
+        paused = false; rate = 0.75;
     } else {
-        ProfileManager::writePlayerControl(false, 1.0);
+        paused = false; rate = 1.0;
     }
+
+    ProfileManager::writePlayerControl(paused, rate);
+    plasmaWritePlayerControl(paused, rate);
 }
 
 SwitchController *Application::switchController() const

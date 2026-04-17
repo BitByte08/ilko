@@ -7,12 +7,10 @@ import org.kde.kirigami as Kirigami
 ColumnLayout {
     id: root
 
-    // Managed by the ilko app/daemon — not exposed in plugin config UI
+    // Managed by the ilko daemon — not exposed in plugin config UI
     property string cfg_wallpaperFile
-    property real cfg_playbackRate: 1.0
-    property real cfg_volume: 0.0
-    property bool cfg_pauseOnBattery: true
-    property bool cfg_pauseOnFullscreen: true
+    property bool   cfg_playerPaused: false
+    property real   cfg_playerRate: 1.0
 
     // Rendering settings — visible in plugin config
     property alias cfg_backgroundColor: colorButton.color

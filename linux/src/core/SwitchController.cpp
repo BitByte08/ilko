@@ -1,10 +1,43 @@
 #include "SwitchController.h"
 
 #include <QDebug>
+#include <QDBusConnection>
+#include <QDBusInterface>
 
 #include "ProfileManager.h"
 #include "NetworkWatcher.h"
 #include "WallpaperDBusService.h"
+
+// Push wallpaperFile to every Plasma desktop containment running our plugin.
+// This avoids the QML_XHR_ALLOW_FILE_READ=1 env-var requirement: the plugin
+// reads root.configuration.wallpaperFile which Plasma updates reactively.
+static void plasmaWriteConfig(const QString &key, const QString &value)
+{
+    QDBusInterface iface(
+        QStringLiteral("org.kde.plasmashell"),
+        QStringLiteral("/PlasmaShell"),
+        QStringLiteral("org.kde.PlasmaShell"),
+        QDBusConnection::sessionBus()
+    );
+    if (!iface.isValid()) return;
+
+    // Escape backslashes and double-quotes so they survive the JS string
+    QString safe = value;
+    safe.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    safe.replace(QLatin1Char('"'),  QStringLiteral("\\\""));
+
+    const QString script = QStringLiteral(
+        "var all=desktops();"
+        "for(var i=0;i<all.length;i++){"
+        "var d=all[i];"
+        "if(d.wallpaperPlugin===\"org.bssm.ilko.video\"){"
+        "d.currentConfigGroup=[\"Wallpaper\",\"org.bssm.ilko.video\",\"General\"];"
+        "d.writeConfig(\"%1\",\"%2\");"
+        "}}"
+    ).arg(key, safe);
+
+    iface.asyncCall(QStringLiteral("evaluateScript"), script);
+}
 
 SwitchController::SwitchController(ProfileManager *profileManager,
                                    NetworkWatcher *networkWatcher,
@@ -120,9 +153,12 @@ void SwitchController::applyWallpaper(const QString &wallpaperPath)
 {
     if (wallpaperPath.isEmpty()) return;
 
-    // Conversion is the UI's responsibility (ProfileEditDialog).
-    // The daemon just applies the path as-is.
     ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
+
+    // Push to Plasma config — plugin reads root.configuration.wallpaperFile,
+    // no QML_XHR_ALLOW_FILE_READ=1 env var needed
+    plasmaWriteConfig(QStringLiteral("wallpaperFile"), wallpaperPath);
+
     if (m_dbusService) {
         m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
     }
