@@ -66,6 +66,7 @@ void ProfileManager::load()
         profile.thumbnailPath = p.value("thumbnailPath").toString();
         profile.isDefault = p.value("isDefault").toBool(false);
         profile.targetFps = p.value("targetFps").toInt(30);
+        profile.batteryPause = p.value("batteryPause").toBool(true);
         m_profiles.append(profile);
     }
 }
@@ -85,6 +86,7 @@ void ProfileManager::save()
         profile.insert("thumbnailPath", p.thumbnailPath);
         profile.insert("isDefault", p.isDefault);
         profile.insert("targetFps", p.targetFps);
+        profile.insert("batteryPause", p.batteryPause);
         profilesArray.append(profile);
     }
     obj.insert("profiles", profilesArray);
@@ -203,4 +205,20 @@ QString ProfileManager::currentWallpaperPath()
 
     if (!doc.isObject()) return {};
     return doc.object().value("wallpaperFile").toString();
+}
+
+void ProfileManager::writePlayerControl(bool paused, double playbackRate, const QString &reason)
+{
+    QDir().mkpath(ilkoDir());
+
+    QJsonObject obj;
+    obj["paused"] = paused;
+    obj["playbackRate"] = playbackRate;
+    if (!reason.isEmpty()) obj["reason"] = reason;
+
+    QFile file(ilkoDir() + "/player_control.json");
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(obj).toJson());
+        file.close();
+    }
 }

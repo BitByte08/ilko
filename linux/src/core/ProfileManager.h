@@ -15,6 +15,7 @@ struct Profile
     QString thumbnailPath;
     bool isDefault;
     int targetFps = 30;
+    bool batteryPause = true;
 
     bool isVideo() const;
     QStringList supportedFormats() const;
@@ -46,6 +47,7 @@ public:
     static QString importWallpaper(const QString &sourcePath);
     static void setCurrentWallpaper(const QString &wallpaperPath, const QString &profileId);
     static QString currentWallpaperPath();
+    static void writePlayerControl(bool paused, double playbackRate = 1.0, const QString &reason = {});
 
 signals:
     void profilesChanged();

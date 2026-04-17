@@ -19,7 +19,13 @@ public:
 
     SwitchController *switchController() const;
 
+private slots:
+    void onScreenLockChanged(bool active);
+    void onChargingChanged(bool charging);
+
 private:
+    void updatePlayerControl();
+
     class Impl;
     std::unique_ptr<Impl> d;
 };

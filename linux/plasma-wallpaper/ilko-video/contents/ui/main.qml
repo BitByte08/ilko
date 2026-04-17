@@ -8,7 +8,8 @@ WallpaperItem {
 
     property string wallpaperSource: root.configuration.wallpaperFile || ""
     property int lastTimestamp: 0
-    property bool onBattery: false
+    property bool playerPaused: false
+    property double playerRate: 1.0
     property bool isVideo: {
         var f = wallpaperSource
         if (!f || f === "") return false
@@ -28,16 +29,16 @@ WallpaperItem {
         "preserveAspectCrop": Image.PreserveAspectCrop
     })
 
-    // Combined poller: wallpaper changes + battery state
+    // Poll daemon-written control files every 2 seconds
     Timer {
         id: poller
         interval: 2000
         running: true
         repeat: true
-        onTriggered: { checkCurrentWallpaper(); checkBatteryState(); }
+        onTriggered: { pollWallpaper(); pollPlayerControl(); }
     }
 
-    function checkCurrentWallpaper() {
+    function pollWallpaper() {
         var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/current_wallpaper.json"
         var xhr = new XMLHttpRequest()
         xhr.onreadystatechange = function() {
@@ -56,14 +57,15 @@ WallpaperItem {
         xhr.send()
     }
 
-    function checkBatteryState() {
-        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/battery_state.json"
+    function pollPlayerControl() {
+        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/player_control.json"
         var xhr = new XMLHttpRequest()
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.responseText !== "") {
                 try {
                     var data = JSON.parse(xhr.responseText)
-                    root.onBattery = !data.charging
+                    root.playerPaused = data.paused || false
+                    root.playerRate = data.playbackRate || 1.0
                 } catch (e) {}
             }
         }
@@ -71,12 +73,17 @@ WallpaperItem {
         xhr.send()
     }
 
-    // Pause video when on battery and cfg_pauseOnBattery is enabled
-    readonly property bool shouldPause: root.configuration.pauseOnBattery && root.onBattery
+    onPlayerPausedChanged: applyPlayerState()
+    onPlayerRateChanged:   applyPlayerState()
 
-    onShouldPauseChanged: {
-        if (shouldPause) mediaPlayer.pause()
-        else if (isVideo && mediaPlayer.playbackState !== MediaPlayer.PlayingState) mediaPlayer.play()
+    function applyPlayerState() {
+        if (!isVideo) return
+        mediaPlayer.playbackRate = root.playerRate
+        if (root.playerPaused) {
+            mediaPlayer.pause()
+        } else if (mediaPlayer.playbackState !== MediaPlayer.PlayingState) {
+            mediaPlayer.play()
+        }
     }
 
     Rectangle {
@@ -94,11 +101,12 @@ WallpaperItem {
     MediaPlayer {
         id: mediaPlayer
         videoOutput: videoOutput
-        // No AudioOutput — wallpaper audio is always disabled, skipping audio decode saves CPU
+        // No AudioOutput — skipping audio decode saves CPU (wallpaper audio is always silent)
         source: isVideo ? wallpaperSource : ""
         loops: MediaPlayer.Infinite
         onMediaStatusChanged: {
-            if (mediaStatus === MediaPlayer.LoadedMedia && !root.shouldPause) {
+            if (mediaStatus === MediaPlayer.LoadedMedia && !root.playerPaused) {
+                mediaPlayer.playbackRate = root.playerRate
                 mediaPlayer.play()
             }
         }
@@ -113,8 +121,8 @@ WallpaperItem {
     }
 
     Component.onCompleted: {
-        checkCurrentWallpaper()
-        checkBatteryState()
+        pollWallpaper()
+        pollPlayerControl()
         console.log("ILKO wallpaper plugin started, source:", wallpaperSource)
     }
 }
