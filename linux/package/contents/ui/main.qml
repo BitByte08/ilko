@@ -44,17 +44,24 @@ WallpaperItem {
         var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/current_wallpaper.json"
         var xhr = new XMLHttpRequest()
         xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE && xhr.responseText !== "") {
-                try {
-                    var data = JSON.parse(xhr.responseText)
-                    var ts = data.timestamp || 0
-                    if (ts !== root.lastTimestamp && data.wallpaperFile) {
-                        root.lastTimestamp = ts
-                        var f = data.wallpaperFile
-                        // MediaPlayer requires a proper file:// URL, not a bare path
-                        root.wallpaperSource = f.startsWith("file://") ? f : ("file://" + f)
-                    }
-                } catch (e) {}
+            if (xhr.readyState !== XMLHttpRequest.DONE) return
+            if (xhr.responseText === "") {
+                console.log("ILKO: XHR returned empty — QML_XHR_ALLOW_FILE_READ=1 not set?", path)
+                return
+            }
+            try {
+                var data = JSON.parse(xhr.responseText)
+                var ts = data.timestamp || 0
+                if (ts !== root.lastTimestamp && data.wallpaperFile) {
+                    root.lastTimestamp = ts
+                    var f = data.wallpaperFile
+                    // encodeURI handles { } in profile UUIDs; file:// needs 3 slashes for absolute paths
+                    var url = f.startsWith("file://") ? f : encodeURI("file://" + f)
+                    console.log("ILKO: wallpaper →", url)
+                    root.wallpaperSource = url
+                }
+            } catch (e) {
+                console.log("ILKO: JSON parse error:", e)
             }
         }
         xhr.open("GET", "file://" + path)
