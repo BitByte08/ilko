@@ -1,16 +1,20 @@
 set(ILKO_SOURCES
     main.cpp
+    core/Application.cpp
     core/ProfileManager.cpp
     core/NetworkWatcher.cpp
     core/SwitchController.cpp
+    core/WallpaperDBusService.cpp
     ui/MainWindow.cpp
     resources.qrc
 )
 
 set(ILKO_HEADERS
+    core/Application.h
     core/ProfileManager.h
     core/NetworkWatcher.h
     core/SwitchController.h
+    core/WallpaperDBusService.h
     ui/MainWindow.h
 )
 

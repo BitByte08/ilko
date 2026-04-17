@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/org/bssm/ilko/WallpaperService">
+  <interface name="org.bssm.ilko.WallpaperService">
+    <method name="getCurrentWallpaper">
+      <arg type="s" direction="out"/>
+    </method>
+    <method name="getCurrentProfileId">
+      <arg type="s" direction="out"/>
+    </method>
+    <method name="setWallpaper">
+      <arg name="wallpaperPath" type="s" direction="in"/>
+      <arg name="profileId" type="s" direction="in"/>
+    </method>
+    <signal name="WallpaperChanged">
+      <arg name="wallpaperPath" type="s"/>
+      <arg name="profileId" type="s"/>
+    </signal>
+  </interface>
+</node>
