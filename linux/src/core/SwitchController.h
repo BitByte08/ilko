@@ -2,7 +2,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QTimer>
 
 class ProfileManager;
 class NetworkWatcher;
@@ -39,7 +38,6 @@ signals:
 
 private slots:
     void onNetworkChanged(const QString &gatewayMac, const QString &ssid);
-    void onConnectionChanged(bool connected);
 
 private:
     void applyWallpaper(const QString &wallpaperPath);
