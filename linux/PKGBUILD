@@ -21,4 +21,8 @@ build() {
 package() {
     cd "${BASH_SOURCE%/*}/build"
     DESTDIR="$pkgdir" ninja install
+
+    install -Dm644 /dev/stdin "${pkgdir}/etc/environment.d/ilko.conf" <<'EOF'
+QML_XHR_ALLOW_FILE_READ=1
+EOF
 }
