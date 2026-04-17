@@ -68,44 +68,38 @@ jobs:
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
 
-  # ── Linux (Arch Linux package) ────────────────────────────────────────────
+# ── Linux (Arch Linux package) ────────────────────────────────────────────
   build-linux:
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |
-          pacman -Sy --noconfirm cmake ninja extra-cmake-modules
-          pacman -Sy --noconfirm qt6-base qt6-multimedia
+          pacman -Sy --noconfirm cmake ninja extra-cmake-modules base-devel
+          pacman -Sy --noconfirm qt6-base qt6-multimedia qt6-multimedia-ffmpeg
+          pacman -Sy --noconfirm kconfig kcoreaddons ki18n plasma-workspace kirigami
+          pacman -Sy --noconfirm libva mesa ffmpeg
 
-      - name: Build
+      - name: Build package
+        working-directory: linux
         run: |
-          mkdir -p linux/build && cd linux/build
-          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-          ninja
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          rm -rf build pkg
+          makepkg -sf
 
-      - name: Package
+      - name: Get package filename
+        id: pkgfile
+        working-directory: linux
         run: |
-          mkdir -p linux/dist
-          cd linux/build
-          DESTDIR=../dist/pkg ninja install
-          cd ../dist
-          mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
-          cp ../data/ilko.png pkg/usr/share/icons/hicolor/256x256/apps/ilko.png
-          mkdir -p pkg/usr/share/applications
-          cp ../data/ilko.desktop pkg/usr/share/applications/ilko.desktop
-
-          VERSION=${{ github.ref_name }}
-          tar -C pkg -cf ilko-${VERSION}-x86_64.pkg.tar .
-          zstd ilko-${VERSION}-x86_64.pkg.tar -o ilko-${VERSION}-x86_64.pkg.tar.zst
+          echo "filename=$(ls ilko-*.pkg.tar.zst)" >> $GITHUB_OUTPUT
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
-        with:
-          files: linux/dist/ilko-*.pkg.tar.zst
+        with: |
+          files: linux/${{ steps.pkgfile.outputs.filename }}
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
