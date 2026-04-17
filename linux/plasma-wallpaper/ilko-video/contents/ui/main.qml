@@ -50,7 +50,8 @@ WallpaperItem {
                     var ts = data.timestamp || 0
                     if (ts !== root.lastTimestamp && data.wallpaperFile) {
                         root.lastTimestamp = ts
-                        root.wallpaperSource = data.wallpaperFile
+                        var f = data.wallpaperFile
+                        root.wallpaperSource = f.startsWith("file://") ? f : ("file://" + f)
                     }
                 } catch (e) {}
             }
@@ -117,7 +118,7 @@ WallpaperItem {
 
     Image {
         anchors.fill: parent
-        source: !isVideo && wallpaperSource ? "file://" + wallpaperSource : ""
+        source: !isVideo && wallpaperSource ? wallpaperSource : ""
         fillMode: root.imageFillModeMap[root.configuration.fillMode] || Image.PreserveAspectCrop
         visible: !isVideo && wallpaperSource !== ""
     }

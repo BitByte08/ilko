@@ -50,7 +50,9 @@ WallpaperItem {
                     var ts = data.timestamp || 0
                     if (ts !== root.lastTimestamp && data.wallpaperFile) {
                         root.lastTimestamp = ts
-                        root.wallpaperSource = data.wallpaperFile
+                        var f = data.wallpaperFile
+                        // MediaPlayer requires a proper file:// URL, not a bare path
+                        root.wallpaperSource = f.startsWith("file://") ? f : ("file://" + f)
                     }
                 } catch (e) {}
             }
@@ -104,6 +106,7 @@ WallpaperItem {
         id: mediaPlayer
         videoOutput: videoOutput
         // No AudioOutput — skipping audio decode saves CPU (wallpaper audio is always silent)
+        // wallpaperSource is always a file:// URL (normalised in pollWallpaper)
         source: isVideo ? wallpaperSource : ""
         loops: MediaPlayer.Infinite
         onMediaStatusChanged: {
@@ -117,7 +120,8 @@ WallpaperItem {
 
     Image {
         anchors.fill: parent
-        source: !isVideo && wallpaperSource ? "file://" + wallpaperSource : ""
+        // wallpaperSource already has file:// prefix — use directly
+        source: !isVideo && wallpaperSource ? wallpaperSource : ""
         fillMode: root.imageFillModeMap[root.configuration.fillMode] || Image.PreserveAspectCrop
         visible: !isVideo && wallpaperSource !== ""
     }
