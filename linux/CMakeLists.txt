@@ -35,6 +35,8 @@ set(PLUGIN_ID "org.bssm.ilko.video")
 add_subdirectory(src)
 
 install(TARGETS ilko DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES data/ilko.desktop data/ilko.png DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+install(FILES data/ilko.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+install(FILES data/ilko.png
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/512x512/apps)
 
 plasma_install_package(package ${PLUGIN_ID} wallpapers)
