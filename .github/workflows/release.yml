@@ -86,7 +86,8 @@ jobs:
         working-directory: linux
         run: |
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          VERSION="${VERSION%%-*}"  # Remove -alpha suffix if any
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           rm -rf build pkg
           makepkg -sf --asroot
