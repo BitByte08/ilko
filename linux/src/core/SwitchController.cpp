@@ -139,7 +139,10 @@ void SwitchController::applyWallpaper(const QString &wallpaperPath)
 
     QFileInfo fi(wallpaperPath);
     QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
-    bool needsEncoding = videoExts.contains(fi.suffix().toLower()) && !wallpaperPath.contains("_h265");
+    // Skip encoding if: already h265, or already stored in wallpapers dir (pre-converted by UI)
+    bool needsEncoding = videoExts.contains(fi.suffix().toLower())
+        && !wallpaperPath.contains("_h265")
+        && !wallpaperPath.startsWith(ProfileManager::wallpapersDir());
 
     if (needsEncoding) {
         QProcess *ffmpeg = new QProcess(this);

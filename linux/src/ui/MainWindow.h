@@ -12,6 +12,8 @@
 #include <QDialog>
 #include <QComboBox>
 #include <QSlider>
+#include <QSpinBox>
+#include <QCheckBox>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QPixmap>
@@ -22,10 +24,13 @@
 #include <QDir>
 #include <QUuid>
 #include <QProcess>
+#include <QProgressDialog>
 
 struct ProfileData {
     QString id, name, gatewayMac, wallpaperPath;
     bool isDefault;
+    int targetFps = 30;
+    bool batteryPause = true;
     static QList<ProfileData> loadAll();
     static void saveAll(const QList<ProfileData>& profiles);
     static void ensureDefaultExists();
@@ -72,13 +77,18 @@ public:
     ProfileData getProfile() const;
 private slots:
     void selectWallpaper();
+    void startConversion(const QString &sourcePath);
     void save();
 private:
     ProfileData m_profile;
     bool m_isNew;
     QLineEdit *m_nameEdit = nullptr, *m_macEdit = nullptr, *m_wallpaperEdit = nullptr;
+    QSpinBox *m_fpsSpinBox = nullptr;
+    QCheckBox *m_batteryPauseCheck = nullptr;
     QLabel *m_previewLabel = nullptr;
     QPushButton *m_saveBtn = nullptr;
+    QProgressDialog *m_progressDialog = nullptr;
+    QProcess *m_converter = nullptr;
 };
 
 class SettingsDialog : public QDialog {
@@ -86,10 +96,5 @@ class SettingsDialog : public QDialog {
 public:
     explicit SettingsDialog(QWidget *p = nullptr);
 private slots:
-    void selectFolder();
     void clearCache();
-private:
-    QLineEdit *m_folderEdit = nullptr;
-    QSlider *m_volumeSlider = nullptr;
-    QComboBox *m_scaleCombo = nullptr;
 };

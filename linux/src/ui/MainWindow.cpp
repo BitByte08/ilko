@@ -31,6 +31,8 @@ QList<ProfileData> ProfileData::loadAll() {
         d.gatewayMac = p["gatewayMac"].toString();
         d.wallpaperPath = p["wallpaperPath"].toString();
         d.isDefault = p["isDefault"].toBool(false);
+        d.targetFps = p["targetFps"].toInt(30);
+        d.batteryPause = p["batteryPause"].toBool(true);
         result.append(d);
     }
     return result;
@@ -42,7 +44,7 @@ void ProfileData::saveAll(const QList<ProfileData>& profiles) {
     for (const auto& p : profiles) {
         QJsonObject o;
         o["id"] = p.id; o["name"] = p.name; o["gatewayMac"] = p.gatewayMac;
-        o["wallpaperPath"] = p.wallpaperPath; o["isDefault"] = p.isDefault;
+        o["wallpaperPath"] = p.wallpaperPath; o["isDefault"] = p.isDefault; o["targetFps"] = p.targetFps; o["batteryPause"] = p.batteryPause;
         arr.append(o);
     }
     QFile file(profilesPath());
@@ -292,15 +294,16 @@ void ProfilesDialog::deleteSelectedProfile()
 // ── ProfileEditDialog (macOS ProfileEditorView 와 동일) ─────
 
 ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWidget *parent)
-    : QDialog(parent), m_profile(profile), m_isNew(isNew)
+    : QDialog(parent), m_profile(profile), m_isNew(isNew), m_progressDialog(nullptr), m_converter(nullptr)
 {
     setWindowTitle(isNew ? "프로필 추가" : "프로필 편집");
-    setMinimumWidth(460);
+    setMinimumWidth(480);
 
     auto layout = new QVBoxLayout(this);
 
-    // 이름
     auto form = new QFormLayout();
+
+    // 이름
     m_nameEdit = new QLineEdit(m_profile.name, this);
     m_nameEdit->setPlaceholderText("홈, 카페, 회사...");
     form->addRow("이름", m_nameEdit);
@@ -323,6 +326,19 @@ ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWi
     wpLayout->addWidget(browseBtn);
     form->addRow("월페이퍼", wpLayout);
 
+    // FPS (변환 시 출력 프레임레이트)
+    m_fpsSpinBox = new QSpinBox(this);
+    m_fpsSpinBox->setRange(10, 120);
+    m_fpsSpinBox->setValue(m_profile.targetFps);
+    m_fpsSpinBox->setSuffix(" fps");
+    m_fpsSpinBox->setToolTip("H.265 변환 시 출력 프레임레이트");
+    form->addRow("변환 FPS", m_fpsSpinBox);
+
+    // 배터리 절약
+    m_batteryPauseCheck = new QCheckBox("배터리 방전 시 일시정지", this);
+    m_batteryPauseCheck->setChecked(m_profile.batteryPause);
+    form->addRow("배터리 절약", m_batteryPauseCheck);
+
     layout->addLayout(form);
 
     // 미리보기
@@ -330,6 +346,7 @@ ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWi
     m_previewLabel->setMinimumHeight(120);
     m_previewLabel->setMaximumHeight(160);
     m_previewLabel->setAlignment(Qt::AlignCenter);
+    m_previewLabel->setText("미리보기 없음");
     layout->addWidget(m_previewLabel);
 
     // 버튼
@@ -353,11 +370,86 @@ void ProfileEditDialog::selectWallpaper()
     auto file = QFileDialog::getOpenFileName(this, "월페이퍼 선택", QDir::homePath(),
         "미디어 (*.mp4 *.webm *.mov *.avi *.mkv *.jpg *.jpeg *.png *.gif);;모든 파일 (*)");
     if (file.isEmpty()) return;
-    m_wallpaperEdit->setText(file);
-    m_profile.wallpaperPath = file;
-    QPixmap px(file);
-    if (!px.isNull())
-        m_previewLabel->setPixmap(px.scaled(m_previewLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+
+    QFileInfo fi(file);
+    static const QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
+
+    if (videoExts.contains(fi.suffix().toLower())) {
+        startConversion(file);
+    } else {
+        m_profile.wallpaperPath = file;
+        m_wallpaperEdit->setText(file);
+        QPixmap px(file);
+        if (!px.isNull())
+            m_previewLabel->setPixmap(px.scaled(m_previewLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    }
+}
+
+void ProfileEditDialog::startConversion(const QString &sourcePath)
+{
+    QString wallpapersDir = QDir::homePath() + "/.ilko/wallpapers";
+    QDir().mkpath(wallpapersDir);
+    QString outputPath = wallpapersDir + "/" + m_profile.id + ".mp4";
+
+    // If a previous converter is running, kill it
+    if (m_converter) {
+        m_converter->kill();
+        m_converter->waitForFinished(1000);
+        m_converter->deleteLater();
+        m_converter = nullptr;
+    }
+
+    m_progressDialog = new QProgressDialog(this);
+    m_progressDialog->setWindowTitle("변환 중");
+    m_progressDialog->setLabelText(QString("H.265 변환 중...\n%1").arg(QFileInfo(sourcePath).fileName()));
+    m_progressDialog->setCancelButtonText("취소");
+    m_progressDialog->setRange(0, 0);  // indeterminate
+    m_progressDialog->setWindowModality(Qt::WindowModal);
+    m_progressDialog->setMinimumDuration(0);
+    m_progressDialog->show();
+    m_saveBtn->setEnabled(false);
+
+    m_converter = new QProcess(this);
+
+    QStringList args = {
+        "-i", sourcePath,
+        "-c:v", "libx265",
+        "-preset", "faster",
+        "-crf", "28",
+        "-r", QString::number(m_fpsSpinBox->value()),
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-threads", "0",
+        "-y",
+        outputPath
+    };
+
+    connect(m_progressDialog, &QProgressDialog::canceled, m_converter, &QProcess::kill);
+
+    connect(m_converter, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, outputPath, sourcePath](int exitCode, QProcess::ExitStatus) {
+        m_progressDialog->close();
+        m_progressDialog->deleteLater();
+        m_progressDialog = nullptr;
+        m_saveBtn->setEnabled(true);
+        m_converter->deleteLater();
+        m_converter = nullptr;
+
+        if (exitCode == 0 && QFile::exists(outputPath)) {
+            m_profile.wallpaperPath = outputPath;
+            m_wallpaperEdit->setText(outputPath);
+            m_previewLabel->setText("변환 완료 ✓");
+        } else if (exitCode != 0) {
+            QFile::remove(outputPath);
+            QMessageBox::warning(this, "변환 실패",
+                "H.265 변환에 실패했습니다.\n원본 파일을 사용합니다.");
+            m_profile.wallpaperPath = sourcePath;
+            m_wallpaperEdit->setText(sourcePath);
+        }
+        // If cancelled (exitCode == -2 from kill), leave wallpaperPath as-is
+    });
+
+    m_converter->start("ffmpeg", args);
 }
 
 void ProfileEditDialog::save()
@@ -365,62 +457,48 @@ void ProfileEditDialog::save()
     if (m_nameEdit->text().trimmed().isEmpty() || m_profile.wallpaperPath.isEmpty()) return;
     m_profile.name = m_nameEdit->text().trimmed();
     m_profile.gatewayMac = m_macEdit->text().trimmed();
+    m_profile.targetFps = m_fpsSpinBox->value();
+    m_profile.batteryPause = m_batteryPauseCheck->isChecked();
     accept();
 }
 
-// ── SettingsDialog (macOS SettingsView 와 동일) ────────────
+// ── SettingsDialog ────────────────────────────────────────
 
 SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle("설정");
-    resize(500, 400);
+    setMinimumWidth(360);
 
     auto layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel("<b>설정</b>", this));
+    layout->addSpacing(8);
 
-    auto form = new QFormLayout();
+    // 저장 경로 안내
+    auto storageInfo = new QLabel(
+        QString("월페이퍼 저장 위치:\n%1/.ilko/wallpapers/").arg(QDir::homePath()), this);
+    storageInfo->setWordWrap(true);
+    layout->addWidget(storageInfo);
 
-    // 폴더
-    auto folderRow = new QHBoxLayout();
-    m_folderEdit = new QLineEdit(this);
-    folderRow->addWidget(m_folderEdit, 1);
-    auto folderBtn = new QPushButton("폴더", this);
-    folderRow->addWidget(folderBtn);
-    form->addRow("월페이퍼 폴더", folderRow);
-
-    // 크기 조절
-    m_scaleCombo = new QComboBox(this);
-    m_scaleCombo->addItems({"채우기", "맞추기", "늘리기", "가운데", "높이 채우기"});
-    form->addRow("비디오 크기 조절", m_scaleCombo);
-
-    // 볼륨
-    m_volumeSlider = new QSlider(Qt::Horizontal, this);
-    m_volumeSlider->setRange(0, 100);
-    m_volumeSlider->setValue(100);
-    form->addRow("볼륨", m_volumeSlider);
-
-    layout->addLayout(form);
     layout->addStretch();
 
-    auto clearBtn = new QPushButton("캐시 삭제", this);
+    auto clearBtn = new QPushButton("변환된 월페이퍼 삭제", this);
+    clearBtn->setToolTip("~/.ilko/wallpapers/ 폴더 안의 변환된 파일을 모두 삭제합니다");
     layout->addWidget(clearBtn);
 
     auto closeBtn = new QPushButton("닫기", this);
     layout->addWidget(closeBtn, 0, Qt::AlignRight);
 
-    connect(folderBtn, &QPushButton::clicked, this, &SettingsDialog::selectFolder);
     connect(clearBtn, &QPushButton::clicked, this, &SettingsDialog::clearCache);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
 
-void SettingsDialog::selectFolder()
-{
-    auto folder = QFileDialog::getExistingDirectory(this, "폴더 선택", QDir::homePath());
-    if (!folder.isEmpty()) m_folderEdit->setText(folder);
-}
-
 void SettingsDialog::clearCache()
 {
-    QDir(QDir::homePath() + "/.ilko/cache").removeRecursively();
-    QMessageBox::information(this, "완료", "캐시가 삭제되었습니다");
+    auto reply = QMessageBox::question(this, "확인",
+        "~/.ilko/wallpapers/ 폴더의 변환된 파일을 모두 삭제할까요?",
+        QMessageBox::Yes | QMessageBox::No);
+    if (reply == QMessageBox::Yes) {
+        QDir(QDir::homePath() + "/.ilko/wallpapers").removeRecursively();
+        QMessageBox::information(this, "완료", "삭제되었습니다.");
+    }
 }
