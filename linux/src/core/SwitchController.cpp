@@ -63,6 +63,13 @@ void SwitchController::onConnectionChanged(bool connected)
     }
 }
 
+void SwitchController::onLowBattery(bool low)
+{
+    // Battery pause is handled by the plugin reading battery_state.json.
+    // Log the state change for diagnostics.
+    qDebug() << "Battery low state:" << low;
+}
+
 void SwitchController::setWallpaperByMac(const QString &mac)
 {
     if (!m_profileManager) return;
