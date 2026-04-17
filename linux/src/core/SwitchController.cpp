@@ -1,8 +1,5 @@
 #include "SwitchController.h"
 
-#include <QProcess>
-#include <QFile>
-#include <QFileInfo>
 #include <QDebug>
 
 #include "ProfileManager.h"
@@ -65,8 +62,6 @@ void SwitchController::onConnectionChanged(bool connected)
 
 void SwitchController::onLowBattery(bool low)
 {
-    // Battery pause is handled by the plugin reading battery_state.json.
-    // Log the state change for diagnostics.
     qDebug() << "Battery low state:" << low;
 }
 
@@ -74,7 +69,6 @@ void SwitchController::setWallpaperByMac(const QString &mac)
 {
     if (!m_profileManager) return;
 
-    // 프로필 리로드 (UI에서 변경했을 수 있음)
     m_profileManager->load();
 
     if (mac.isEmpty()) {
@@ -98,8 +92,8 @@ void SwitchController::setWallpaper(const QString &profileId)
     const QList<Profile> profiles = m_profileManager->profiles();
     for (const Profile &profile : profiles) {
         if (profile.id == profileId) {
-            applyWallpaper(profile.wallpaperPath);
             m_currentProfileId = profileId;
+            applyWallpaper(profile.wallpaperPath);
             emit wallpaperChanged(profileId);
             return;
         }
@@ -107,7 +101,6 @@ void SwitchController::setWallpaper(const QString &profileId)
 
     emit error(QStringLiteral("Profile not found: %1").arg(profileId));
 }
-
 
 void SwitchController::setDefaultWallpaper()
 {
@@ -118,75 +111,20 @@ void SwitchController::setDefaultWallpaper()
         return;
     }
 
-    applyWallpaper(profile.wallpaperPath);
     m_currentProfileId = profile.id;
+    applyWallpaper(profile.wallpaperPath);
     emit wallpaperChanged(profile.id);
 }
 
 void SwitchController::applyWallpaper(const QString &wallpaperPath)
 {
-    if (wallpaperPath.isEmpty()) {
-        return;
-    }
+    if (wallpaperPath.isEmpty()) return;
 
-    int targetFps = 30;
-    for (const Profile &p : m_profileManager->profiles()) {
-        if (p.id == m_currentProfileId) {
-            targetFps = p.targetFps > 0 ? p.targetFps : 30;
-            break;
-        }
-    }
-
-    QFileInfo fi(wallpaperPath);
-    QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
-    // Skip encoding if: already h265, or already stored in wallpapers dir (pre-converted by UI)
-    bool needsEncoding = videoExts.contains(fi.suffix().toLower())
-        && !wallpaperPath.contains("_h265")
-        && !wallpaperPath.startsWith(ProfileManager::wallpapersDir());
-
-    if (needsEncoding) {
-        QProcess *ffmpeg = new QProcess(this);
-        QString outputPath = wallpaperPath.left(wallpaperPath.lastIndexOf('.')) + "_h265.mp4";
-
-        QStringList args;
-        args << "-i" << wallpaperPath
-             << "-c:v" << "libx265"
-             << "-preset" << "faster"
-             << "-crf" << "28"
-             << "-r" << QString::number(targetFps)
-             << "-c:a" << "aac"
-             << "-b:a" << "128k"
-             << "-threads" << "0"
-             << "-y"
-             << outputPath;
-
-        connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this, [this, ffmpeg, wallpaperPath, outputPath](int exitCode, QProcess::ExitStatus) {
-            if (exitCode == 0 && QFile::exists(outputPath)) {
-                QFile::remove(wallpaperPath);
-                QFile::rename(outputPath, wallpaperPath);
-                qDebug() << "H.265 conversion done:" << wallpaperPath;
-            } else {
-                qWarning() << "H.265 conversion failed, using original file:" << wallpaperPath;
-                if (QFile::exists(outputPath)) QFile::remove(outputPath);
-            }
-            // Notify only after encoding completes (success or failure)
-            ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
-            if (m_dbusService) {
-                m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
-            }
-            ffmpeg->deleteLater();
-        });
-
-        ffmpeg->start("ffmpeg", args);
-        qDebug() << "Started H.265 conversion in background:" << wallpaperPath;
-        return;
-    }
-
-    // No encoding needed — notify immediately
+    // Conversion is the UI's responsibility (ProfileEditDialog).
+    // The daemon just applies the path as-is.
     ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
     if (m_dbusService) {
         m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
     }
-    qDebug() << "Wallpaper set to:" << wallpaperPath;
+    qDebug() << "Wallpaper applied:" << wallpaperPath;
 }
