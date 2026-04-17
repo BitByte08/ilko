@@ -1,46 +1,33 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
 ColumnLayout {
     id: root
 
+    // Managed by the ilko app/daemon — not exposed in plugin config UI
     property string cfg_wallpaperFile
+    property real cfg_playbackRate: 1.0
+    property real cfg_volume: 0.0
+    property bool cfg_pauseOnBattery: true
+    property bool cfg_pauseOnFullscreen: true
+
+    // Rendering settings — visible in plugin config
     property alias cfg_backgroundColor: colorButton.color
-    property alias cfg_playbackRate: playbackRateSlider.value
-    property alias cfg_volume: volumeSlider.value
     property string cfg_fillMode
     property alias fillModeIndex: fillModeCombo.currentIndex
-    property alias cfg_pauseOnBattery: pauseOnBatteryCheck.checked
-    property alias cfg_pauseOnFullscreen: pauseOnFullscreenCheck.checked
 
     Kirigami.FormLayout {
         Layout.fillWidth: true
 
-        RowLayout {
-            Kirigami.FormData.label: "Wallpaper file:"
-
-            TextField {
-                id: filePathField
-                text: root.cfg_wallpaperFile
-                Layout.fillWidth: true
-                readOnly: true
-                placeholderText: "Select a video or image file..."
-            }
-
-            Button {
-                icon.name: "document-open"
-                text: "Browse..."
-                onClicked: fileDialog.open()
-            }
-
-            Button {
-                icon.name: "edit-clear"
-                text: "Clear"
-                onClicked: root.cfg_wallpaperFile = ""
-            }
+        Label {
+            Layout.fillWidth: true
+            text: "Wallpaper and switching settings are managed by the ilko app."
+            font.italic: true
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            color: Kirigami.Theme.disabledTextColor
+            wrapMode: Text.WordWrap
         }
 
         RowLayout {
@@ -70,40 +57,6 @@ ColumnLayout {
             }
         }
 
-        RowLayout {
-            Kirigami.FormData.label: "Playback speed:"
-
-            Slider {
-                id: playbackRateSlider
-                from: 0.25
-                to: 2.0
-                stepSize: 0.25
-                Layout.fillWidth: true
-                value: 1.0
-            }
-            Label {
-                text: playbackRateSlider.value.toFixed(2) + "x"
-                Layout.minimumWidth: 40
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: "Volume:"
-
-            Slider {
-                id: volumeSlider
-                from: 0.0
-                to: 1.0
-                stepSize: 0.1
-                Layout.fillWidth: true
-                value: 0.0
-            }
-            Label {
-                text: Math.round(volumeSlider.value * 100) + "%"
-                Layout.minimumWidth: 40
-            }
-        }
-
         ComboBox {
             id: fillModeCombo
             Kirigami.FormData.label: "Fill mode:"
@@ -113,45 +66,6 @@ ColumnLayout {
                 return idx >= 0 ? idx : 0
             }
             onCurrentIndexChanged: root.cfg_fillMode = model[currentIndex]
-        }
-
-        CheckBox {
-            id: pauseOnBatteryCheck
-            Kirigami.FormData.label: "Pause on battery:"
-            checked: true
-            text: "Pause video when on battery power"
-        }
-
-        CheckBox {
-            id: pauseOnFullscreenCheck
-            Kirigami.FormData.label: "Pause on fullscreen:"
-            checked: true
-            text: "Pause video when a fullscreen app is active"
-        }
-
-        Label {
-            Layout.fillWidth: true
-            text: "Supported formats: MP4, WebM, MOV, AVI, MKV, M4V, FLV, WMV, and common image formats (JPG, PNG, etc.)"
-            font.italic: true
-            font.pointSize: Kirigami.Theme.smallFont.pointSize
-            color: Kirigami.Theme.disabledTextColor
-            wrapMode: Text.WordWrap
-        }
-    }
-
-    FileDialog {
-        id: fileDialog
-        title: "Select Wallpaper File"
-        nameFilters: [
-            "Media Files (*.mp4 *.webm *.mov *.avi *.mkv *.m4v *.flv *.wmv *.jpg *.jpeg *.png *.bmp *.webp *.gif *.svg *.tiff)",
-            "Video Files (*.mp4 *.webm *.mov *.avi *.mkv *.m4v *.flv *.wmv)",
-            "Image Files (*.jpg *.jpeg *.png *.bmp *.webp *.gif *.svg *.tiff)",
-            "All Files (*)"
-        ]
-        onAccepted: {
-            var path = selectedFile.toString()
-            if (path.startsWith("file://")) path = path.substring(7)
-            root.cfg_wallpaperFile = path
         }
     }
 
