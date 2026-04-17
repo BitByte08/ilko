@@ -25,7 +25,7 @@ SwitchController::SwitchController(ProfileManager *profileManager,
         connect(m_networkWatcher, &NetworkWatcher::networkChanged,
                 this, &SwitchController::onNetworkChanged);
         connect(m_networkWatcher, &NetworkWatcher::connectionStateChanged,
-                this, &SwitchController::onConnectionStateChanged);
+                this, &SwitchController::onConnectionChanged);
     }
     
     m_dbusService = new ilko::WallpaperDBusService(this);
@@ -59,7 +59,7 @@ void SwitchController::onNetworkChanged(const QString &gatewayMac, const QString
     setWallpaperByMac(gatewayMac);
 }
 
-void SwitchController::onConnectionStateChanged(bool connected)
+void SwitchController::onConnectionChanged(bool connected)
 {
     if (!connected) {
         setDefaultWallpaper();
@@ -155,15 +155,14 @@ void SwitchController::applyWallpaper(const QString &wallpaperPath)
         }
     }
 
-    ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
-    
     QFileInfo fi(wallpaperPath);
     QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
-    
-    if (videoExts.contains(fi.suffix().toLower()) && !wallpaperPath.contains("_h265")) {
+    bool needsEncoding = videoExts.contains(fi.suffix().toLower()) && !wallpaperPath.contains("_h265");
+
+    if (needsEncoding) {
         QProcess *ffmpeg = new QProcess(this);
         QString outputPath = wallpaperPath.left(wallpaperPath.lastIndexOf('.')) + "_h265.mp4";
-        
+
         QStringList args;
         args << "-i" << wallpaperPath
              << "-c:v" << "libx265"
@@ -175,30 +174,34 @@ void SwitchController::applyWallpaper(const QString &wallpaperPath)
              << "-threads" << "0"
              << "-y"
              << outputPath;
-        
+
         connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                 this, [this, ffmpeg, wallpaperPath, outputPath](int exitCode, QProcess::ExitStatus) {
             if (exitCode == 0 && QFile::exists(outputPath)) {
                 QFile::remove(wallpaperPath);
                 QFile::rename(outputPath, wallpaperPath);
-                qDebug() << "Video converted to H.265:" << wallpaperPath;
-                
-                ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
-                
-                if (m_dbusService) {
-                    m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
-                }
+                qDebug() << "H.265 conversion done:" << wallpaperPath;
+            } else {
+                qWarning() << "H.265 conversion failed, using original file:" << wallpaperPath;
+                if (QFile::exists(outputPath)) QFile::remove(outputPath);
+            }
+            // Notify only after encoding completes (success or failure)
+            ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
+            if (m_dbusService) {
+                m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
             }
             ffmpeg->deleteLater();
         });
-        
+
         ffmpeg->start("ffmpeg", args);
         qDebug() << "Started H.265 conversion in background:" << wallpaperPath;
+        return;
     }
-    
+
+    // No encoding needed — notify immediately
+    ProfileManager::setCurrentWallpaper(wallpaperPath, m_currentProfileId);
     if (m_dbusService) {
         m_dbusService->emitWallpaperChanged(wallpaperPath, m_currentProfileId);
     }
-
     qDebug() << "Wallpaper set to:" << wallpaperPath;
 }
