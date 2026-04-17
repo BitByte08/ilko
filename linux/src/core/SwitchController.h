@@ -30,6 +30,8 @@ public slots:
     void setWallpaper(const QString &profileId);
     void setWallpaperByMac(const QString &mac);
     void setDefaultWallpaper();
+    void onLowBattery(bool low);
+    void onConnectionChanged(bool connected);
 
 signals:
     void wallpaperChanged(const QString &profileId);
@@ -37,8 +39,7 @@ signals:
 
 private slots:
     void onNetworkChanged(const QString &gatewayMac, const QString &ssid);
-    void onConnectionStateChanged(bool connected);
-    void checkFullscreen();
+    void onConnectionChanged(bool connected);
 
 private:
     void applyWallpaper(const QString &wallpaperPath);
@@ -48,5 +49,4 @@ private:
     QString m_currentProfileId;
     bool m_running;
     ilko::WallpaperDBusService *m_dbusService;
-    QTimer *m_fullscreenTimer;
 };

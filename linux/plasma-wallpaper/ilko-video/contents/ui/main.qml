@@ -8,6 +8,7 @@ WallpaperItem {
 
     property string wallpaperSource: root.configuration.wallpaperFile || ""
     property int lastTimestamp: 0
+    property bool onBattery: false
     property bool isVideo: {
         var f = wallpaperSource
         if (!f || f === "") return false
@@ -27,13 +28,13 @@ WallpaperItem {
         "preserveAspectCrop": Image.PreserveAspectCrop
     })
 
-    // Poll ~/.ilko/current_wallpaper.json to receive daemon-driven wallpaper changes
+    // Combined poller: wallpaper changes + battery state
     Timer {
-        id: wallpaperPoller
+        id: poller
         interval: 2000
         running: true
         repeat: true
-        onTriggered: checkCurrentWallpaper()
+        onTriggered: { checkCurrentWallpaper(); checkBatteryState(); }
     }
 
     function checkCurrentWallpaper() {
@@ -55,6 +56,29 @@ WallpaperItem {
         xhr.send()
     }
 
+    function checkBatteryState() {
+        var path = StandardPaths.writableLocation(StandardPaths.HomeLocation) + "/.ilko/battery_state.json"
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE && xhr.responseText !== "") {
+                try {
+                    var data = JSON.parse(xhr.responseText)
+                    root.onBattery = !data.charging
+                } catch (e) {}
+            }
+        }
+        xhr.open("GET", "file://" + path)
+        xhr.send()
+    }
+
+    // Pause video when on battery and cfg_pauseOnBattery is enabled
+    readonly property bool shouldPause: root.configuration.pauseOnBattery && root.onBattery
+
+    onShouldPauseChanged: {
+        if (shouldPause) mediaPlayer.pause()
+        else if (isVideo && mediaPlayer.playbackState !== MediaPlayer.PlayingState) mediaPlayer.play()
+    }
+
     Rectangle {
         anchors.fill: parent
         color: root.configuration.backgroundColor || "#000000"
@@ -70,17 +94,15 @@ WallpaperItem {
     MediaPlayer {
         id: mediaPlayer
         videoOutput: videoOutput
-        audioOutput: audioOutput
+        // No AudioOutput — wallpaper audio is always disabled, skipping audio decode saves CPU
         source: isVideo ? wallpaperSource : ""
         loops: MediaPlayer.Infinite
-        playbackRate: root.configuration.playbackRate || 1.0
-        onMediaStatusChanged: if (mediaStatus === MediaPlayer.LoadedMedia) mediaPlayer.play()
+        onMediaStatusChanged: {
+            if (mediaStatus === MediaPlayer.LoadedMedia && !root.shouldPause) {
+                mediaPlayer.play()
+            }
+        }
         onErrorOccurred: function(e, msg) { console.log("ILKO MediaPlayer error:", msg) }
-    }
-
-    AudioOutput {
-        id: audioOutput
-        muted: true
     }
 
     Image {
@@ -92,6 +114,7 @@ WallpaperItem {
 
     Component.onCompleted: {
         checkCurrentWallpaper()
+        checkBatteryState()
         console.log("ILKO wallpaper plugin started, source:", wallpaperSource)
     }
 }

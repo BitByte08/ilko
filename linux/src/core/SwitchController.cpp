@@ -1,9 +1,8 @@
 #include "SwitchController.h"
 
 #include <QProcess>
+#include <QFile>
 #include <QFileInfo>
-#include <QJsonDocument>
-#include <QJsonArray>
 #include <QDebug>
 
 #include "ProfileManager.h"
@@ -19,7 +18,6 @@ SwitchController::SwitchController(ProfileManager *profileManager,
     , m_currentProfileId()
     , m_running(false)
     , m_dbusService(nullptr)
-    , m_fullscreenTimer(new QTimer(this))
 {
     if (m_networkWatcher) {
         connect(m_networkWatcher, &NetworkWatcher::networkChanged,
@@ -27,11 +25,8 @@ SwitchController::SwitchController(ProfileManager *profileManager,
         connect(m_networkWatcher, &NetworkWatcher::connectionStateChanged,
                 this, &SwitchController::onConnectionChanged);
     }
-    
-    m_dbusService = new ilko::WallpaperDBusService(this);
 
-    connect(m_fullscreenTimer, &QTimer::timeout, this, &SwitchController::checkFullscreen);
-    m_fullscreenTimer->start(3000);
+    m_dbusService = new ilko::WallpaperDBusService(this);
 }
 
 SwitchController::~SwitchController() = default;
@@ -106,26 +101,6 @@ void SwitchController::setWallpaper(const QString &profileId)
     emit error(QStringLiteral("Profile not found: %1").arg(profileId));
 }
 
-void SwitchController::checkFullscreen()
-{
-    QProcess p;
-    p.start("bash", QStringList{"-c", "xprop -id $(xprop -root _NET_ACTIVE_WINDOW | cut -d' ' -f5) _NET_WM_STATE 2>/dev/null | grep -q _NET_WM_STATE_FULLSCREEN && echo fullscreen || echo normal"});
-    if (!p.waitForFinished(2000)) {
-        p.kill();
-        p.waitForFinished(500);
-    }
-    bool isFullscreen = p.readAllStandardOutput().trimmed() == "fullscreen";
-
-    QJsonDocument doc;
-    QJsonArray arr;
-    if (isFullscreen) arr.append("fullscreen");
-    doc.setArray(arr);
-
-    QFile file(ProfileManager::ilkoDir() + "/fullscreen_state.json");
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(doc.toJson());
-    }
-}
 
 void SwitchController::setDefaultWallpaper()
 {
