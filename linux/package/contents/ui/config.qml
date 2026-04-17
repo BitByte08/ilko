@@ -9,6 +9,12 @@ ColumnLayout {
 
     property string cfg_wallpaperFile
     property alias cfg_backgroundColor: colorButton.color
+    property alias cfg_playbackRate: playbackRateSlider.value
+    property alias cfg_volume: volumeSlider.value
+    property string cfg_fillMode
+    property alias fillModeIndex: fillModeCombo.currentIndex
+    property alias cfg_pauseOnBattery: pauseOnBatteryCheck.checked
+    property alias cfg_pauseOnFullscreen: pauseOnFullscreenCheck.checked
 
     Kirigami.FormLayout {
         Layout.fillWidth: true
@@ -33,9 +39,7 @@ ColumnLayout {
             Button {
                 icon.name: "edit-clear"
                 text: "Clear"
-                onClicked: {
-                    root.cfg_wallpaperFile = ""
-                }
+                onClicked: root.cfg_wallpaperFile = ""
             }
         }
 
@@ -66,6 +70,65 @@ ColumnLayout {
             }
         }
 
+        RowLayout {
+            Kirigami.FormData.label: "Playback speed:"
+
+            Slider {
+                id: playbackRateSlider
+                from: 0.25
+                to: 2.0
+                stepSize: 0.25
+                Layout.fillWidth: true
+                value: 1.0
+            }
+            Label {
+                text: playbackRateSlider.value.toFixed(2) + "x"
+                Layout.minimumWidth: 40
+            }
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: "Volume:"
+
+            Slider {
+                id: volumeSlider
+                from: 0.0
+                to: 1.0
+                stepSize: 0.1
+                Layout.fillWidth: true
+                value: 0.0
+            }
+            Label {
+                text: Math.round(volumeSlider.value * 100) + "%"
+                Layout.minimumWidth: 40
+            }
+        }
+
+        ComboBox {
+            id: fillModeCombo
+            Kirigami.FormData.label: "Fill mode:"
+            model: ["preserveAspectCrop", "preserveAspectFit", "stretch"]
+            currentIndex: {
+                var idx = model.indexOf(root.cfg_fillMode)
+                return idx >= 0 ? idx : 0
+            }
+            onCurrentIndexChanged: root.cfg_fillMode = model[currentIndex]
+        }
+
+        CheckBox {
+            id: pauseOnBatteryCheck
+            Kirigami.FormData.label: "Pause on battery:"
+            checked: true
+            text: "Pause video when on battery power"
+        }
+
+        CheckBox {
+            id: pauseOnFullscreenCheck
+            Kirigami.FormData.label: "Pause on fullscreen:"
+            checked: true
+            text: "Pause video when a fullscreen app is active"
+        }
+
         Label {
             Layout.fillWidth: true
             text: "Supported formats: MP4, WebM, MOV, AVI, MKV, M4V, FLV, WMV, and common image formats (JPG, PNG, etc.)"
@@ -87,9 +150,7 @@ ColumnLayout {
         ]
         onAccepted: {
             var path = selectedFile.toString()
-            if (path.startsWith("file://")) {
-                path = path.substring(7)
-            }
+            if (path.startsWith("file://")) path = path.substring(7)
             root.cfg_wallpaperFile = path
         }
     }
@@ -97,12 +158,8 @@ ColumnLayout {
     ColorDialog {
         id: colorDialog
         selectedColor: colorButton.color
-        onAccepted: {
-            colorButton.color = selectedColor
-        }
+        onAccepted: colorButton.color = selectedColor
     }
 
-    Item {
-        Layout.fillHeight: true
-    }
+    Item { Layout.fillHeight: true }
 }

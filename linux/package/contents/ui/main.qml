@@ -1,87 +1,148 @@
 import QtQuick
 import QtMultimedia
-import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
-import org.kde.kirigami as Kirigami
 
 WallpaperItem {
     id: root
 
-    property string currentFile: root.configuration.wallpaperFile || ""
-    property bool isVideo: isVideoFile(currentFile)
+    property string ilkoWallpaper: ""
+    property string effectiveFile: ilkoWallpaper !== "" ? ilkoWallpaper : (root.configuration.wallpaperFile || "")
+    property bool isVideo: {
+        if (!effectiveFile || effectiveFile === "") return false
+        var ext = effectiveFile.split('.').pop().toLowerCase()
+        return ["mp4", "webm", "mov", "avi", "mkv"].indexOf(ext) !== -1
+    }
+    property bool onBattery: false
+    property bool hasFullscreenApp: false
+    property bool initialized: false
 
-    function isVideoFile(path) {
-        if (!path || path === "") return false
-        var ext = String(path).split('.').pop().toLowerCase()
-        return ["mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"].indexOf(ext) !== -1
+    property double playbackRate: root.configuration.playbackRate || 1.0
+    property double volume: root.configuration.volume || 0.0
+    property string fillMode: root.configuration.fillMode || "preserveAspectCrop"
+    property bool pauseOnBattery: root.configuration.pauseOnBattery !== undefined ? root.configuration.pauseOnBattery : true
+    property bool pauseOnFullscreen: root.configuration.pauseOnFullscreen !== undefined ? root.configuration.pauseOnFullscreen : true
+
+    property bool shouldPause: initialized && ((onBattery && pauseOnBattery) || (hasFullscreenApp && pauseOnFullscreen))
+
+    function loadWallpaperFile() {
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                try {
+                    var obj = JSON.parse(xhr.responseText || "{}")
+                    if (obj.wallpaperFile && obj.wallpaperFile !== "") {
+                        if (root.ilkoWallpaper !== obj.wallpaperFile) {
+                            root.ilkoWallpaper = obj.wallpaperFile
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+        xhr.open("GET", "file:///home/bitbyte08/.ilko/current_wallpaper.json")
+        xhr.send()
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: root.configuration.backgroundColor || "#000000"
+    function checkBattery() {
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                var text = (xhr.responseText || "").trim()
+                root.onBattery = (text === "Discharging")
+            }
+        }
+        xhr.open("GET", "file:///sys/class/power_supply/BAT1/status")
+        xhr.onerror = function() {
+            var xhr2 = new XMLHttpRequest()
+            xhr2.onreadystatechange = function() {
+                if (xhr2.readyState === XMLHttpRequest.DONE) {
+                    var text2 = (xhr2.responseText || "").trim()
+                    root.onBattery = (text2 === "Discharging")
+                }
+            }
+            xhr2.open("GET", "file:///sys/class/power_supply/BAT0/status")
+            xhr2.send()
+        }
+        xhr.send()
+    }
+
+    function checkFullscreen() {
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                try {
+                    var data = JSON.parse(xhr.responseText || "[]")
+                    root.hasFullscreenApp = data.length > 0
+                } catch(e) {
+                    root.hasFullscreenApp = false
+                }
+            }
+        }
+        xhr.open("GET", "file:///home/bitbyte08/.ilko/fullscreen_state.json")
+        xhr.send()
+    }
+
+    Timer { interval: 10000; running: true; repeat: true; onTriggered: loadWallpaperFile() }
+    Timer { interval: 5000; running: true; repeat: true; onTriggered: { checkBattery(); checkFullscreen(); } }
+
+    Timer {
+        id: initTimer
+        interval: 3000
+        running: true
+        repeat: false
+        onTriggered: {
+            root.initialized = true
+            checkBattery()
+        }
+    }
+
+    onShouldPauseChanged: {
+        if (shouldPause) mediaPlayer.pause()
+        else if (root.isVideo && root.effectiveFile !== "" && mediaPlayer.mediaStatus === MediaPlayer.LoadedMedia) mediaPlayer.play()
     }
 
     VideoOutput {
         id: videoOutput
         anchors.fill: parent
-        fillMode: VideoOutput.PreserveAspectCrop
-        visible: root.isVideo && root.currentFile !== ""
+        fillMode: fillMode === "preserveAspectCrop" ? VideoOutput.PreserveAspectCrop : 
+                  fillMode === "stretch" ? VideoOutput.Stretch : 
+                  fillMode === "preserveAspectFit" ? VideoOutput.PreserveAspectFit : VideoOutput.PreserveAspectCrop
+        visible: root.isVideo
     }
 
     MediaPlayer {
         id: mediaPlayer
         videoOutput: videoOutput
         audioOutput: audioOutput
-        source: root.isVideo ? root.currentFile : ""
+        source: root.isVideo ? root.effectiveFile : ""
         loops: MediaPlayer.Infinite
-        playbackRate: 1.0
-
+        playbackRate: root.playbackRate
         onMediaStatusChanged: {
             if (mediaStatus === MediaPlayer.LoadedMedia) {
-                mediaPlayer.play()
+                if (!root.shouldPause) mediaPlayer.play()
+                else mediaPlayer.pause()
             }
         }
-
-        onErrorOccurred: function(error, errorString) {
-            console.log("ILKO Video Error:", errorString)
-        }
+        onErrorOccurred: function(err, msg) { console.log("ILKO Error:", msg) }
     }
 
-    AudioOutput {
-        id: audioOutput
-        muted: true
-        volume: 0.0
-    }
+    AudioOutput { id: audioOutput; muted: true; volume: root.volume }
 
     Image {
-        id: imageWallpaper
         anchors.fill: parent
-        source: !root.isVideo && root.currentFile !== "" ? ("file://" + root.currentFile) : ""
+        source: !root.isVideo && root.effectiveFile !== "" ? ("file://" + root.effectiveFile) : ""
         fillMode: Image.PreserveAspectCrop
-        smooth: true
-        cache: false
-        visible: !root.isVideo && root.currentFile !== ""
+        visible: !root.isVideo && root.effectiveFile !== ""
     }
 
-    Kirigami.PlaceholderMessage {
-        visible: root.currentFile === ""
-        anchors.centerIn: parent
-        width: parent.width - Kirigami.Units.gridUnit * 2
-        icon.name: "video-symbolic"
-        text: i18n("No wallpaper configured.\nSelect a video or image in the settings.")
-    }
+    Rectangle { anchors.fill: parent; color: root.configuration.backgroundColor || "#000000" }
 
-    Component.onCompleted: {
-        if (root.isVideo && root.currentFile !== "") {
-            mediaPlayer.play()
-        }
-    }
+    Component.onCompleted: loadWallpaperFile()
 
-    onCurrentFileChanged: {
-        if (root.isVideo && root.currentFile !== "") {
+    onEffectiveFileChanged: {
+        if (root.isVideo && root.effectiveFile !== "") {
             mediaPlayer.stop()
-            mediaPlayer.source = root.currentFile
-            mediaPlayer.play()
+            mediaPlayer.source = root.effectiveFile
+            if (!root.shouldPause) mediaPlayer.play()
         }
     }
 }

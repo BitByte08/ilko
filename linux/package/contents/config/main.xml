@@ -13,5 +13,25 @@
       <label>Background color</label>
       <default>#000000</default>
     </entry>
+    <entry name="playbackRate" type="Double">
+      <label>Playback speed</label>
+      <default>1.0</default>
+    </entry>
+    <entry name="volume" type="Double">
+      <label>Volume</label>
+      <default>0.0</default>
+    </entry>
+    <entry name="fillMode" type="String">
+      <label>Fill mode</label>
+      <default>preserveAspectCrop</default>
+    </entry>
+    <entry name="pauseOnBattery" type="Bool">
+      <label>Pause video on battery</label>
+      <default>true</default>
+    </entry>
+    <entry name="pauseOnFullscreen" type="Bool">
+      <label>Pause video on fullscreen app</label>
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>

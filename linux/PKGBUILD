@@ -1,6 +1,6 @@
 # Maintainer: bitbyte08 <me@bitworkspace.kr>
 pkgname=ilko
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Network-based automatic wallpaper switcher for KDE Plasma with video wallpaper support"
 arch=('x86_64')
