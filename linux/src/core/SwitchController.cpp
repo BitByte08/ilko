@@ -55,9 +55,9 @@ void SwitchController::onConnectionChanged(bool connected)
 {
     if (!connected) {
         setDefaultWallpaper();
-    } else if (m_networkWatcher->isConnected()) {
-        setWallpaperByMac(m_networkWatcher->currentGatewayMac());
     }
+    // on connect: networkChanged is always emitted alongside this signal,
+    // so onNetworkChanged handles the wallpaper switch — no double-apply here.
 }
 
 void SwitchController::onLowBattery(bool low)

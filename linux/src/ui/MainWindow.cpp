@@ -16,6 +16,16 @@ static QString profilesPath() {
     return QDir::homePath() + "/.ilko/profiles.json";
 }
 
+// Reads the currently-active profile ID from daemon's JSON
+static QString readCurrentProfileId()
+{
+    QFile f(QDir::homePath() + "/.ilko/current_wallpaper.json");
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    auto doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    return doc.object().value("profileId").toString();
+}
+
 static const QStringList kVideoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
 
 // Returns a scaled thumbnail for a wallpaper path.
@@ -159,23 +169,50 @@ void MainWindow::setupTrayIcon()
     if (!QSystemTrayIcon::isSystemTrayAvailable()) return;
     m_trayIcon = new QSystemTrayIcon(this);
     m_trayIcon->setIcon(QIcon::fromTheme("video-television"));
+
     m_trayMenu = new QMenu(this);
+
+    // Current profile indicator (disabled — info only)
+    m_currentProfileAction = m_trayMenu->addAction("현재 프로필: -");
+    m_currentProfileAction->setEnabled(false);
+    m_trayMenu->addSeparator();
+
     m_trayMenu->addAction("열기", this, [this]() { show(); activateWindow(); raise(); });
     m_trayMenu->addSeparator();
     m_trayMenu->addAction("종료", this, &MainWindow::onQuit);
+
     m_trayIcon->setContextMenu(m_trayMenu);
     connect(m_trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::onTrayIconActivated);
+    // Refresh current profile name each time the menu is opened
+    connect(m_trayMenu, &QMenu::aboutToShow, this, &MainWindow::refreshTrayMenu);
     m_trayIcon->show();
+}
+
+void MainWindow::refreshTrayMenu()
+{
+    if (!m_currentProfileAction) return;
+    const QString currentId = readCurrentProfileId();
+    const auto profiles = ProfileData::loadAll();
+    for (const auto &p : profiles) {
+        if (p.id == currentId) {
+            m_currentProfileAction->setText(QString("현재 프로필: %1").arg(p.name));
+            return;
+        }
+    }
+    m_currentProfileAction->setText("현재 프로필: -");
 }
 
 void MainWindow::updateVideoGrid()
 {
     m_videoGrid->clear();
-    
-    // Load and display profiles
+
     auto profiles = ProfileData::loadAll();
-    
+    const QString currentId = readCurrentProfileId();
+    QString currentName;
+
     for (const auto& profile : profiles) {
+        bool active = (profile.id == currentId);
+
         QString displayName = profile.isDefault
             ? profile.name
             : QString("%1\n%2").arg(profile.name).arg(profile.gatewayMac);
@@ -188,9 +225,21 @@ void MainWindow::updateVideoGrid()
             item->setIcon(QIcon(thumb));
         else
             item->setIcon(QIcon::fromTheme("image-missing"));
+
+        if (active) {
+            QFont f = item->font();
+            f.setBold(true);
+            item->setFont(f);
+            // Blue background tint to mark the active profile
+            item->setBackground(QColor(0, 120, 215, 40));
+            currentName = profile.name;
+        }
     }
-    
-    statusBar()->showMessage(QString("%1개 프로필").arg(profiles.size()));
+
+    if (!currentName.isEmpty())
+        statusBar()->showMessage(QString("현재 프로필: %1 | 총 %2개").arg(currentName).arg(profiles.size()));
+    else
+        statusBar()->showMessage(QString("%1개 프로필").arg(profiles.size()));
 }
 
 void MainWindow::onVideoDoubleClicked(QListWidgetItem *item)
@@ -217,7 +266,10 @@ void MainWindow::onVideoDoubleClicked(QListWidgetItem *item)
     }
 }
 
-void MainWindow::showProfilesDialog() { ProfilesDialog(this).exec(); }
+void MainWindow::showProfilesDialog() {
+    ProfilesDialog(this).exec();
+    updateVideoGrid();  // sync after add/edit/delete
+}
 void MainWindow::showSettingsDialog() { SettingsDialog(this).exec(); }
 
 void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason r) {

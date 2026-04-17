@@ -48,12 +48,14 @@ private slots:
     void showProfilesDialog();
     void updateVideoGrid();
     void onVideoDoubleClicked(QListWidgetItem*);
+    void refreshTrayMenu();
 private:
     void setupUi();
     void setupTrayIcon();
     QSystemTrayIcon *m_trayIcon = nullptr;
     QMenu *m_trayMenu = nullptr;
     QListWidget *m_videoGrid = nullptr;
+    QAction *m_currentProfileAction = nullptr;
 };
 
 class ProfilesDialog : public QDialog {

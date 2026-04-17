@@ -143,7 +143,7 @@ void NetworkWatcher::checkNetwork()
         // Empty MAC: ARP entries can disappear transiently.
         // Only declare disconnected after 2 consecutive empty polls.
         ++m_emptyMacStreak;
-        if (m_emptyMacStreak >= 2 && m_isConnected) {
+        if (m_emptyMacStreak >= 4 && m_isConnected) {
             m_isConnected = false;
             m_currentGatewayMac.clear();
             emit connectionStateChanged(false);

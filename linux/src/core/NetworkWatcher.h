@@ -38,5 +38,5 @@ private:
     QString m_currentSsid;
     bool m_isConnected;
     bool m_running;
-    int m_emptyMacStreak = 0;  // consecutive polls with no MAC — need 2 before declaring disconnected
+    int m_emptyMacStreak = 0;  // consecutive polls with no MAC — need 4 before declaring disconnected
 };
