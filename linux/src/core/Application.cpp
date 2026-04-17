@@ -75,8 +75,8 @@ void Application::initialize()
         d->appConnector->sendToPlugin(msg);
     });
 
-    connect(d->networkWatcher.get(), &NetworkWatcher::connectionStateChanged,
-            d->switchController.get(), &SwitchController::onConnectionChanged);
+    // NOTE: connectionStateChanged is already connected inside SwitchController's
+    // constructor — do NOT add a second connection here or every signal fires twice.
 
     // Screen lock detection via org.freedesktop.ScreenSaver
     QDBusConnection sessionBus = QDBusConnection::sessionBus();

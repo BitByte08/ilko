@@ -121,23 +121,32 @@ bool NetworkWatcher::parseArpOutput(const QString &output, QString &mac)
 
 void NetworkWatcher::checkNetwork()
 {
-    QString oldGatewayMac = m_currentGatewayMac;
-    bool wasConnected = m_isConnected;
+    const QString oldGatewayMac = m_currentGatewayMac;
 
-    QString gatewayMac = getGatewayMac();
+    const QString gatewayMac = getGatewayMac();
 
-    m_isConnected = !gatewayMac.isEmpty();
+    if (!gatewayMac.isEmpty()) {
+        m_emptyMacStreak = 0;
 
-    if (m_isConnected != wasConnected) {
-        emit connectionStateChanged(m_isConnected);
-    }
+        // New or changed gateway MAC → switch wallpaper
+        if (gatewayMac != oldGatewayMac) {
+            m_currentGatewayMac = gatewayMac;
 
-    if (!gatewayMac.isEmpty() && gatewayMac != oldGatewayMac) {
-        m_currentGatewayMac = gatewayMac;
-        emit networkChanged(gatewayMac, m_currentSsid);
-    }
-    
-    if (m_isConnected && gatewayMac.isEmpty()) {
-        m_currentGatewayMac.clear();
+            if (!m_isConnected) {
+                m_isConnected = true;
+                emit connectionStateChanged(true);
+            }
+
+            emit networkChanged(gatewayMac, m_currentSsid);
+        }
+    } else {
+        // Empty MAC: ARP entries can disappear transiently.
+        // Only declare disconnected after 2 consecutive empty polls.
+        ++m_emptyMacStreak;
+        if (m_emptyMacStreak >= 2 && m_isConnected) {
+            m_isConnected = false;
+            m_currentGatewayMac.clear();
+            emit connectionStateChanged(false);
+        }
     }
 }
