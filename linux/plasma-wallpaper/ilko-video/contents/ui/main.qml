@@ -6,7 +6,9 @@ import org.kde.plasma.plasmoid
 WallpaperItem {
     id: root
 
-    property string wallpaperSource: root.configuration.wallpaperFile || ""
+    // Daemon JSON is authoritative; do not init from Plasma's own config.
+    // pollWallpaper() on Component.onCompleted will set the correct value.
+    property string wallpaperSource: ""
     property int lastTimestamp: 0
     property bool playerPaused: false
     property double playerRate: 1.0

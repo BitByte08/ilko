@@ -5,6 +5,10 @@ set(ILKO_SOURCES
     core/NetworkWatcher.cpp
     core/SwitchController.cpp
     core/WallpaperDBusService.cpp
+    core/BatteryWatcher.cpp
+    core/AppConnector.cpp
+    core/StorageManager.cpp
+    core/Logger.cpp
     ui/MainWindow.cpp
     resources.qrc
 )
@@ -15,6 +19,10 @@ set(ILKO_HEADERS
     core/NetworkWatcher.h
     core/SwitchController.h
     core/WallpaperDBusService.h
+    core/BatteryWatcher.h
+    core/AppConnector.h
+    core/StorageManager.h
+    core/Logger.h
     ui/MainWindow.h
 )
 

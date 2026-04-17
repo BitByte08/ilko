@@ -68,29 +68,42 @@ void NetworkWatcher::onNMPropertiesChanged(const QString &interface, const QVari
     }
 }
 
+static QString runCommand(const QString &prog, const QStringList &args)
+{
+    QProcess p;
+    p.start(prog, args, QIODevice::ReadOnly);
+    if (!p.waitForStarted(500)) return {};
+    p.closeWriteChannel();
+    QString out;
+    if (p.waitForReadyRead(1500)) out = p.readAllStandardOutput();
+    p.kill();
+    p.waitForFinished(500);
+    return out.trimmed();
+}
+
 QString NetworkWatcher::getGatewayMac()
 {
-    QProcess process;
-    process.start("ip", QStringList{"neigh", "show", "default"}, QIODevice::ReadOnly);
-    
-    if (!process.waitForStarted(500)) {
-        return QString{};
-    }
-    
-    process.closeWriteChannel();
-    
-    QString output;
-    if (process.waitForReadyRead(1000)) {
-        output = process.readAllStandardOutput();
-    }
-    process.kill();
-    process.waitForFinished(500);
+    // Step 1: get the default gateway IP
+    // "ip route show default" → "default via 10.0.0.1 dev wlan0 ..."
+    const QString routeOut = runCommand("ip", {"route", "show", "default"});
+    if (routeOut.isEmpty()) return {};
+
+    QRegularExpression gwRe(R"(default via (\d+\.\d+\.\d+\.\d+))");
+    QRegularExpressionMatch gwMatch = gwRe.match(routeOut);
+    if (!gwMatch.hasMatch()) return {};
+
+    const QString gatewayIp = gwMatch.captured(1);
+
+    // Step 2: look up the MAC for that specific IP in the neighbour table
+    // "ip neigh show <ip>" → "10.0.0.1 dev wlan0 lladdr 00:11:22:33:44:55 REACHABLE"
+    const QString neighOut = runCommand("ip", {"neigh", "show", gatewayIp});
+    if (neighOut.isEmpty()) return {};
 
     QString mac;
-    if (parseArpOutput(output, mac)) {
+    if (parseArpOutput(neighOut, mac)) {
         return mac.toLower();
     }
-    return QString{};
+    return {};
 }
 
 bool NetworkWatcher::parseArpOutput(const QString &output, QString &mac)
