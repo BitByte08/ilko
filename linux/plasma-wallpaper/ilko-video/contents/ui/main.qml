@@ -19,12 +19,14 @@ WallpaperItem {
     property string wallpaperVersion: root.configuration.wallpaperVersion || ""
 
     onWallpaperVersionChanged: {
-        // Version bumped means the file was replaced in-place (same path, new content).
-        // Force MediaPlayer to drop its cache and re-open the file.
-        if (isVideo && mediaPlayer.source !== "") {
-            var src = mediaPlayer.source
+        // wallpaperVersion이 바뀌는 경우:
+        //   (1) 같은 경로, 파일 교체 — wallpaperSource는 그대로
+        //   (2) 프로필 전환 — wallpaperSource도 새 경로로 바뀜
+        // mediaPlayer.source 바인딩이 아직 새 경로를 반영 안 했을 수 있으므로
+        // wallpaperSource(항상 최신)를 직접 사용해 리로드.
+        if (isVideo && wallpaperSource !== "") {
             mediaPlayer.source = ""
-            mediaPlayer.source = src
+            mediaPlayer.source = wallpaperSource
             if (!root.playerPaused) mediaPlayer.play()
         }
     }
