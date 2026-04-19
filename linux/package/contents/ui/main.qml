@@ -5,33 +5,58 @@ import org.kde.plasma.plasmoid
 WallpaperItem {
     id: root
 
-    // Daemon pushes wallpaperFile to Plasma config via PlasmaShell.evaluateScript.
-    // Reading root.configuration.*  requires no env vars or XHR.
+    // 초기값은 Plasma config에서 읽음 (시작 시 1회)
+    // 런타임 변경은 아래 Timer가 current_wallpaper.json 폴링으로 처리
     property string wallpaperSource: {
         var f = root.configuration.wallpaperFile || ""
         if (!f) return ""
-        // Ensure file:// URL with encoded special chars ({} in UUIDs)
         return f.startsWith("file://") ? f : encodeURI("file://" + f)
     }
 
-    property bool   playerPaused:    root.configuration.playerPaused    || false
-    property double playerRate:      root.configuration.playerRate      || 1.0
-    property string wallpaperVersion: root.configuration.wallpaperVersion || ""
+    property bool   playerPaused: root.configuration.playerPaused || false
+    property double playerRate:   root.configuration.playerRate   || 1.0
 
-    onWallpaperVersionChanged: {
-        // Version bumped means the file was replaced in-place (same path, new content).
-        // Force MediaPlayer to drop its cache and re-open the file.
-        if (isVideo && mediaPlayer.source !== "") {
-            var src = mediaPlayer.source
-            mediaPlayer.source = ""
-            mediaPlayer.source = src
-            if (!root.playerPaused) mediaPlayer.play()
+    // wallpaperFile 경로에서 홈 디렉토리 추출
+    property string _homePath: {
+        var f = root.configuration.wallpaperFile || ""
+        var idx = f.indexOf("/.ilko/")
+        return idx >= 0 ? f.substring(0, idx) : ""
+    }
+    property string _appliedSource:    ""
+    property int    _appliedTimestamp: 0
+
+    // current_wallpaper.json 폴링 — Plasma config 변경 알림이 런타임에 동작 안 해서 필요
+    Timer {
+        interval: 1500
+        running: root._homePath !== ""
+        repeat: true
+        onTriggered: {
+            var xhr = new XMLHttpRequest()
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4 || xhr.status !== 200) return
+                try {
+                    var data = JSON.parse(xhr.responseText)
+                    var rawPath = data.wallpaperFile || ""
+                    var ts      = data.timestamp     || 0
+                    if (!rawPath) return
+                    if (rawPath === root._appliedSource && ts === root._appliedTimestamp) return
+                    root._appliedSource    = rawPath
+                    root._appliedTimestamp = ts
+                    var encoded = rawPath.startsWith("file://") ? rawPath : encodeURI("file://" + rawPath)
+                    root.wallpaperSource = encoded
+                    mediaPlayer.source = ""
+                    mediaPlayer.source = encoded
+                    if (!root.playerPaused) mediaPlayer.play()
+                } catch(e) {}
+            }
+            xhr.open("GET", "file://" + root._homePath + "/.ilko/current_wallpaper.json")
+            xhr.send()
         }
     }
 
     property bool isVideo: {
         var f = wallpaperSource
-        if (!f || f === "") return false
+        if (!f) return false
         var ext = f.split('.').pop().toLowerCase()
         return ["mp4", "webm", "mov", "avi", "mkv"].indexOf(ext) !== -1
     }
@@ -76,7 +101,6 @@ WallpaperItem {
     MediaPlayer {
         id: mediaPlayer
         videoOutput: videoOutput
-        // No AudioOutput — skipping audio decode saves CPU
         source: isVideo ? wallpaperSource : ""
         loops: MediaPlayer.Infinite
         onMediaStatusChanged: {
@@ -87,7 +111,6 @@ WallpaperItem {
         }
         onErrorOccurred: function(e, msg) {
             console.log("ILKO MediaPlayer error:", msg)
-            // Stop immediately — don't spam errors by looping a broken file
             mediaPlayer.stop()
         }
     }
@@ -100,6 +123,7 @@ WallpaperItem {
     }
 
     Component.onCompleted: {
+        _appliedSource = root.configuration.wallpaperFile || ""
         console.log("ILKO wallpaper plugin started, source:", wallpaperSource)
     }
 }
