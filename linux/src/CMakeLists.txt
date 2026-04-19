@@ -9,6 +9,7 @@ set(ILKO_SOURCES
     core/AppConnector.cpp
     core/StorageManager.cpp
     core/Logger.cpp
+    core/GpuDetector.cpp
     ui/MainWindow.cpp
     resources.qrc
 )
@@ -23,6 +24,7 @@ set(ILKO_HEADERS
     core/AppConnector.h
     core/StorageManager.h
     core/Logger.h
+    core/GpuDetector.h
     ui/MainWindow.h
 )
 

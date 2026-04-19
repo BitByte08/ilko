@@ -13,6 +13,7 @@
 #include "AppConnector.h"
 #include "StorageManager.h"
 #include "Logger.h"
+#include "GpuDetector.h"
 
 namespace ilko {
 
@@ -28,6 +29,7 @@ public:
 
     bool screenLocked = false;
     bool onBattery = false;   // true = discharging
+    bool gpuPowerSavingApplied = false;
 };
 
 Application::Application(QObject *parent)
@@ -110,6 +112,14 @@ void Application::initialize()
     // Write initial player control state
     updatePlayerControl();
 
+    // GPU 자동 감지 및 절전 설정
+    auto gpuResult = GpuDetector::autoConfigureIfNeeded();
+    d->gpuPowerSavingApplied = (gpuResult == GpuDetector::ConfigResult::Applied);
+    if (gpuResult == GpuDetector::ConfigResult::Applied)
+        Logger::instance()->info("Application", "Hybrid GPU detected — power saving env applied (re-login required)");
+    else if (gpuResult == GpuDetector::ConfigResult::AlreadyActive)
+        Logger::instance()->info("Application", "Hybrid GPU power saving already active");
+
     Logger::instance()->info("Application", "Initialized successfully");
 }
 
@@ -165,6 +175,11 @@ void Application::updatePlayerControl()
 
     ProfileManager::writePlayerControl(paused, rate);
     plasmaWritePlayerControl(paused, rate);
+}
+
+bool Application::wasGpuPowerSavingApplied() const
+{
+    return d->gpuPowerSavingApplied;
 }
 
 SwitchController *Application::switchController() const

@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "../core/GpuDetector.h"
 
 #include <QApplication>
 #include <QAction>
@@ -11,6 +12,7 @@
 #include <QComboBox>
 #include <QRegularExpression>
 #include <QFileInfo>
+#include <QTextStream>
 
 static QString profilesPath() {
     return QDir::homePath() + "/.ilko/profiles.json";
@@ -280,6 +282,20 @@ void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason r) {
 }
 
 void MainWindow::onQuit() { QCoreApplication::quit(); }
+
+void MainWindow::notifyHybridGpuApplied()
+{
+    if (m_trayIcon) {
+        m_trayIcon->showMessage(
+            "ILKO — 하이브리드 GPU 감지",
+            "NVIDIA + 내장 GPU 구성을 감지했습니다.\n"
+            "절전 디코딩 모드를 활성화했습니다.\n"
+            "재로그인 후 적용됩니다.",
+            QSystemTrayIcon::Information,
+            6000
+        );
+    }
+}
 
 // ── ProfilesDialog (macOS ProfilesView 와 동일) ─────────────
 
@@ -595,13 +611,46 @@ void ProfileEditDialog::save()
 SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle("설정");
-    setMinimumWidth(360);
+    setMinimumWidth(380);
 
     auto layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel("<b>설정</b>", this));
     layout->addSpacing(8);
 
-    // 저장 경로 안내
+    // ── GPU 절전 섹션 ──────────────────────────────────────
+    layout->addWidget(new QLabel("<b>GPU 절전</b>", this));
+
+    const bool isHybrid = GpuDetector::isHybridNvidiaPlusIgpu();
+
+    // 감지 결과 표시
+    auto gpuStatusLabel = new QLabel(
+        isHybrid
+            ? "감지됨: NVIDIA + 내장 GPU (하이브리드)"
+            : "해당 없음: 하이브리드 GPU 구성이 아닙니다",
+        this);
+    gpuStatusLabel->setStyleSheet(
+        isHybrid ? "color: #2a9d3a;" : "color: gray;");
+    layout->addWidget(gpuStatusLabel);
+
+    m_powerSavingCheck = new QCheckBox(
+        "NVIDIA 하드웨어 디코딩 비활성화 (내장 GPU로 절전)", this);
+    m_powerSavingCheck->setToolTip(
+        "비디오 디코딩을 NVIDIA 대신 내장 GPU로 처리합니다.\n"
+        "AMD+NVIDIA 하이브리드 노트북에서 약 20W 절감 효과가 있습니다.\n"
+        "변경 후 재로그인이 필요합니다.");
+    m_powerSavingCheck->setChecked(GpuDetector::isPowerSavingActive());
+    m_powerSavingCheck->setEnabled(isHybrid);
+    layout->addWidget(m_powerSavingCheck);
+
+    m_reloginLabel = new QLabel("* 변경 후 재로그인해야 적용됩니다.", this);
+    m_reloginLabel->setStyleSheet("color: gray; font-size: 11px;");
+    m_reloginLabel->setVisible(false);
+    layout->addWidget(m_reloginLabel);
+
+    layout->addSpacing(12);
+
+    // ── 저장 경로 섹션 ─────────────────────────────────────
+    layout->addWidget(new QLabel("<b>저장소</b>", this));
     auto storageInfo = new QLabel(
         QString("월페이퍼 저장 위치:\n%1/.ilko/wallpapers/").arg(QDir::homePath()), this);
     storageInfo->setWordWrap(true);
@@ -616,8 +665,15 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     auto closeBtn = new QPushButton("닫기", this);
     layout->addWidget(closeBtn, 0, Qt::AlignRight);
 
+    connect(m_powerSavingCheck, &QCheckBox::toggled, this, &SettingsDialog::onPowerSavingToggled);
     connect(clearBtn, &QPushButton::clicked, this, &SettingsDialog::clearCache);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+}
+
+void SettingsDialog::onPowerSavingToggled(bool enabled)
+{
+    GpuDetector::setEnabled(enabled);
+    m_reloginLabel->setVisible(true);
 }
 
 void SettingsDialog::clearCache()

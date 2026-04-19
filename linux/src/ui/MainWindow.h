@@ -41,6 +41,7 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *p = nullptr);
     ~MainWindow();
+    void notifyHybridGpuApplied();
 signals:
     void profileSaved();
 private slots:
@@ -101,4 +102,8 @@ public:
     explicit SettingsDialog(QWidget *p = nullptr);
 private slots:
     void clearCache();
+    void onPowerSavingToggled(bool enabled);
+private:
+    QCheckBox *m_powerSavingCheck = nullptr;
+    QLabel    *m_reloginLabel     = nullptr;
 };

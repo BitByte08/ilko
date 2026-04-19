@@ -33,5 +33,9 @@ int main(int argc, char *argv[])
                      daemon.switchController(), &SwitchController::reapplyCurrentProfile);
     window.show();
 
+    // 이번 실행에서 처음으로 하이브리드 GPU를 감지해 절전 설정을 적용한 경우 알림
+    if (daemon.wasGpuPowerSavingApplied())
+        window.notifyHybridGpuApplied();
+
     return app.exec();
 }
