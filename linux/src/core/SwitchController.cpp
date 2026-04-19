@@ -100,6 +100,26 @@ void SwitchController::onConnectionChanged(bool connected)
 void SwitchController::onLowBattery(bool low)
 {
     qDebug() << "Battery low state:" << low;
+
+    if (!low) {
+        ProfileManager::writePlayerControl(false, 1.0, "batteryOk");
+        plasmaWritePlayerControl(false, 1.0);
+        return;
+    }
+
+    if (m_currentProfileId.isEmpty()) return;
+    m_profileManager->load();
+    const Profile *profile = nullptr;
+    for (const Profile &p : m_profileManager->profiles()) {
+        if (p.id == m_currentProfileId) {
+            profile = &p;
+            break;
+        }
+    }
+    if (!profile || !profile->batteryPause) return;
+
+    ProfileManager::writePlayerControl(true, 1.0, "lowBattery");
+    plasmaWritePlayerControl(true, 1.0);
 }
 
 void SwitchController::setWallpaperByMac(const QString &mac)
