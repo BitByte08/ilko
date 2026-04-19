@@ -83,14 +83,14 @@ ILKO는 **장소(네트워크)별 월페이퍼 프로필**로 동작합니다.
 
    <img width="205" height="198" alt="image" src="https://github.com/user-attachments/assets/5a70d6c3-3c66-48a9-ad6c-217ca98c6421" />
 
-3. 툴바 **👥** 버튼 → 프로필 관리 화면
+2. 툴바 **👥** 버튼 → 프로필 관리 화면
 
    <img width="187" height="52" alt="image" src="https://github.com/user-attachments/assets/4949d1c9-db7e-43e4-bb49-d04348b35edb" />
    
-4. "기본 (일코)" 프로필 선택 → **편집**
+3. "기본 (일코)" 프로필 선택 → **편집**
    <img width="1824" height="1424" alt="image" src="https://github.com/user-attachments/assets/24dc0dda-1e1d-4a92-a493-f713d6f9a070" />
    
-6. 외출 시 쓸 평범한 배경화면 파일 지정 후 저장
+4. 외출 시 쓸 평범한 배경화면 파일 지정 후 저장
    <img width="912" height="712" alt="image" src="https://github.com/user-attachments/assets/671537d4-0e84-4c6c-ae3e-5ef85716a26a" />
 
 **2단계 — 집(오타쿠용) 프로필 추가**
@@ -102,7 +102,7 @@ ILKO는 **장소(네트워크)별 월페이퍼 프로필**로 동작합니다.
 4. 오타쿠 배경화면 파일 지정 (mp4/mov/jpg/png)
    <img width="1824" height="1424" alt="image" src="https://github.com/user-attachments/assets/3a8af752-1a7d-4309-b13c-b03f61384127" />
    
-6. 저장
+5. 저장
 
 **3단계 — 완료**
 
@@ -236,20 +236,32 @@ macOS/Windows와 동일한 프로필 개념으로 동작합니다.
 
 **1단계 — 기본(외출용) 프로필 설정**
 
-1. 앱 실행 → 트레이 아이콘 클릭
-   <!-- <img width="256" height="256" alt="screenshot" src="" /> -->
+1. 트레이 아이콘 우클릭 → 앱 열기
 
-2. 사이드바 **기본 (일코)** 프로필 선택 → 편집
+   <img width="51" height="48" alt="image" src="https://github.com/user-attachments/assets/0635fc87-5439-4ecd-b5e1-5f467be70d08" />
+   
+   <img width="198" height="164" alt="image" src="https://github.com/user-attachments/assets/c2252b0e-d7af-4bdf-be52-997076526ad4" />
+   
+2. 상단바 프로필 버튼 클릭 → **기본 (일코)** 프로필 선택 → 편집
+
+   <img width="1440" height="1082" alt="image" src="https://github.com/user-attachments/assets/054ad92f-8b7e-4d53-9a2b-957a87c1f867" />
 
 3. 외출 시 쓸 평범한 배경화면 지정 후 저장
 
+   <img width="769" height="687" alt="image" src="https://github.com/user-attachments/assets/4a8572a9-477e-444d-a727-b50453100b2e" />
+
 **2단계 — 집(오타쿠용) 프로필 추가**
 
-1. 사이드바 하단 **+** 버튼 클릭
+1. 상단바 프로필 버튼 클릭 → 추가
+
+   <img width="1437" height="1083" alt="image" src="https://github.com/user-attachments/assets/9bd9c123-d05b-4295-83c6-e871c4930f6c" />
+
 2. 프로필 이름 입력 (예: "집")
 3. **네트워크 자동 감지** 버튼 클릭 → 게이트웨이 MAC 자동 입력
 4. 오타쿠 배경화면 파일 선택 (mp4/mov/jpg/png 등)
-   <img width="1024" height="768" alt="screenshot" src="" />
+
+   <img width="764" height="687" alt="image" src="https://github.com/user-attachments/assets/46a03d9e-aca5-4d68-8dbe-3e07c92c922e" />
+
 5. 저장
 
 ### 시스템 요구사항
