@@ -78,7 +78,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Sy --noconfirm cmake ninja extra-cmake-modules base-devel
-          pacman -Sy --noconfirm qt6-base qt6-multimedia qt6-multimedia-ffmpeg
+          pacman -Sy --noconfirm qt6-base qt6-multimedia qt6-multimedia-ffmpeg qt6-multimedia-gstreamer
           pacman -Sy --noconfirm kconfig kcoreaddons ki18n plasma-workspace kirigami
           pacman -Sy --noconfirm libva mesa ffmpeg
 
