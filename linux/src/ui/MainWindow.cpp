@@ -82,6 +82,8 @@ QList<ProfileData> ProfileData::loadAll() {
         d.wallpaperPath = p["wallpaperPath"].toString();
         d.isDefault = p["isDefault"].toBool(false);
         d.targetFps = p["targetFps"].toInt(30);
+        d.encodingQuality = p["encodingQuality"].toInt(18);
+        d.convertToH265 = p["convertToH265"].toBool(true);
         d.batteryPause = p["batteryPause"].toBool(true);
         result.append(d);
     }
@@ -94,7 +96,7 @@ void ProfileData::saveAll(const QList<ProfileData>& profiles) {
     for (const auto& p : profiles) {
         QJsonObject o;
         o["id"] = p.id; o["name"] = p.name; o["gatewayMac"] = p.gatewayMac;
-        o["wallpaperPath"] = p.wallpaperPath; o["isDefault"] = p.isDefault; o["targetFps"] = p.targetFps; o["batteryPause"] = p.batteryPause;
+        o["wallpaperPath"] = p.wallpaperPath; o["isDefault"] = p.isDefault; o["targetFps"] = p.targetFps; o["encodingQuality"] = p.encodingQuality; o["convertToH265"] = p.convertToH265; o["batteryPause"] = p.batteryPause;
         arr.append(o);
     }
     QFile file(profilesPath());
@@ -444,13 +446,32 @@ ProfileEditDialog::ProfileEditDialog(const ProfileData &profile, bool isNew, QWi
     wpLayout->addWidget(browseBtn);
     form->addRow("월페이퍼", wpLayout);
 
+    // H.265 변환 토글
+    m_convertCheck = new QCheckBox("H.265 변환 (끄면 원본 파일 그대로 복사)", this);
+    m_convertCheck->setChecked(m_profile.convertToH265);
+    form->addRow("인코딩", m_convertCheck);
+
     // FPS (변환 시 출력 프레임레이트)
     m_fpsSpinBox = new QSpinBox(this);
     m_fpsSpinBox->setRange(10, 120);
     m_fpsSpinBox->setValue(m_profile.targetFps);
     m_fpsSpinBox->setSuffix(" fps");
     m_fpsSpinBox->setToolTip("H.265 변환 시 출력 프레임레이트");
+    m_fpsSpinBox->setEnabled(m_profile.convertToH265);
     form->addRow("변환 FPS", m_fpsSpinBox);
+
+    // 인코딩 품질 (H.265 CRF)
+    m_qualitySpinBox = new QSpinBox(this);
+    m_qualitySpinBox->setRange(14, 30);
+    m_qualitySpinBox->setValue(m_profile.encodingQuality);
+    m_qualitySpinBox->setToolTip("H.265 CRF — 낮을수록 고품질 (파일 크기 증가)\n14 = 시각적 무손실 / 18 = 권장 / 30 = 저품질");
+    m_qualitySpinBox->setEnabled(m_profile.convertToH265);
+    form->addRow("변환 품질 (CRF)", m_qualitySpinBox);
+
+    connect(m_convertCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        m_fpsSpinBox->setEnabled(checked);
+        m_qualitySpinBox->setEnabled(checked);
+    });
 
     // 배터리 절약
     m_batteryPauseCheck = new QCheckBox("배터리 방전 시 일시정지", this);
@@ -499,13 +520,44 @@ void ProfileEditDialog::selectWallpaper()
     static const QStringList videoExts = {"mp4", "webm", "mov", "avi", "mkv", "m4v", "flv", "wmv"};
 
     if (videoExts.contains(fi.suffix().toLower())) {
-        startConversion(file);
+        // 변환은 저장 버튼을 눌러야 시작됨 — 여기선 경로만 기억
+        m_pendingSourcePath = file;
+        m_wallpaperEdit->setText(fi.fileName() + " (저장 시 변환)");
+        // 미리보기는 원본에서 썸네일 추출
+        QPixmap thumb = wallpaperThumbnail(file, m_profile.id, QSize(320, 160));
+        if (!thumb.isNull())
+            m_previewLabel->setPixmap(thumb);
+        else
+            m_previewLabel->setText("미리보기 없음");
     } else {
+        m_pendingSourcePath.clear();
         m_profile.wallpaperPath = file;
         m_wallpaperEdit->setText(file);
         QPixmap px(file);
         if (!px.isNull())
             m_previewLabel->setPixmap(px.scaled(m_previewLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    }
+}
+
+void ProfileEditDialog::copyFile(const QString &sourcePath)
+{
+    QString wallpapersDir = QDir::homePath() + "/.ilko/wallpapers";
+    QDir().mkpath(wallpapersDir);
+    QString ext = QFileInfo(sourcePath).suffix().toLower();
+    QString outputPath = wallpapersDir + "/" + m_profile.id + "." + ext;
+    QString tmpPath    = wallpapersDir + "/." + m_profile.id + "_tmp." + ext;
+
+    m_saveBtn->setEnabled(false);
+    QFile::remove(tmpPath);
+    if (QFile::copy(sourcePath, tmpPath)) {
+        QFile::remove(outputPath);
+        QFile::rename(tmpPath, outputPath);
+        m_profile.wallpaperPath = outputPath;
+        m_pendingSourcePath.clear();
+        accept();
+    } else {
+        m_saveBtn->setEnabled(true);
+        QMessageBox::warning(this, "복사 실패", "파일 복사에 실패했습니다.");
     }
 }
 
@@ -542,8 +594,8 @@ void ProfileEditDialog::startConversion(const QString &sourcePath)
     QStringList args = {
         "-i", sourcePath,
         "-c:v", "libx265",
-        "-preset", "faster",
-        "-crf", "28",
+        "-preset", "medium",
+        "-crf", QString::number(m_qualitySpinBox->value()),
         "-r", QString::number(m_fpsSpinBox->value()),
         "-an",          // no audio — video wallpaper never plays audio
         "-threads", "0",
@@ -568,18 +620,13 @@ void ProfileEditDialog::startConversion(const QString &sourcePath)
             QFile::rename(tmpPath, outputPath);
 
             m_profile.wallpaperPath = outputPath;
-            m_wallpaperEdit->setText(outputPath);
+            m_pendingSourcePath.clear();
 
             // Regenerate thumbnail cache for updated video
             QString thumbDir = QDir::homePath() + "/.ilko/thumbnails";
-            QString thumbPath = thumbDir + "/" + m_profile.id + ".jpg";
-            QFile::remove(thumbPath);
+            QFile::remove(thumbDir + "/" + m_profile.id + ".jpg");
 
-            QPixmap thumb = wallpaperThumbnail(outputPath, m_profile.id, QSize(320, 160));
-            if (!thumb.isNull())
-                m_previewLabel->setPixmap(thumb);
-            else
-                m_previewLabel->setText("변환 완료 ✓");
+            accept();
         } else {
             // Failed or cancelled — discard the incomplete temp file
             QFile::remove(tmpPath);
@@ -598,12 +645,24 @@ void ProfileEditDialog::startConversion(const QString &sourcePath)
 
 void ProfileEditDialog::save()
 {
-    if (m_nameEdit->text().trimmed().isEmpty() || m_profile.wallpaperPath.isEmpty()) return;
+    if (m_nameEdit->text().trimmed().isEmpty()) return;
+    if (m_profile.wallpaperPath.isEmpty() && m_pendingSourcePath.isEmpty()) return;
+
     m_profile.name = m_nameEdit->text().trimmed();
     m_profile.gatewayMac = m_macEdit->text().trimmed();
     m_profile.targetFps = m_fpsSpinBox->value();
+    m_profile.encodingQuality = m_qualitySpinBox->value();
+    m_profile.convertToH265 = m_convertCheck->isChecked();
     m_profile.batteryPause = m_batteryPauseCheck->isChecked();
-    accept();
+
+    if (!m_pendingSourcePath.isEmpty()) {
+        if (m_profile.convertToH265)
+            startConversion(m_pendingSourcePath);
+        else
+            copyFile(m_pendingSourcePath);
+    } else {
+        accept();
+    }
 }
 
 // ── SettingsDialog ────────────────────────────────────────

@@ -30,6 +30,8 @@ struct ProfileData {
     QString id, name, gatewayMac, wallpaperPath;
     bool isDefault;
     int targetFps = 30;
+    int encodingQuality = 18;  // H.265 CRF (14~30, 낮을수록 고품질)
+    bool convertToH265 = true;
     bool batteryPause = true;
     static QList<ProfileData> loadAll();
     static void saveAll(const QList<ProfileData>& profiles);
@@ -83,12 +85,16 @@ public:
 private slots:
     void selectWallpaper();
     void startConversion(const QString &sourcePath);
+    void copyFile(const QString &sourcePath);
     void save();
 private:
     ProfileData m_profile;
     bool m_isNew;
+    QString m_pendingSourcePath;   // 선택됐지만 아직 변환 안 된 원본 경로
     QLineEdit *m_nameEdit = nullptr, *m_macEdit = nullptr, *m_wallpaperEdit = nullptr;
     QSpinBox *m_fpsSpinBox = nullptr;
+    QSpinBox *m_qualitySpinBox = nullptr;
+    QCheckBox *m_convertCheck = nullptr;
     QCheckBox *m_batteryPauseCheck = nullptr;
     QLabel *m_previewLabel = nullptr;
     QPushButton *m_saveBtn = nullptr;

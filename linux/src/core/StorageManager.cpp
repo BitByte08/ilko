@@ -70,7 +70,7 @@ bool StorageManager::convertToH265(const QString &inputPath, const QString &outp
         "-i", inputPath,
         "-c:v", "libx265",
         "-preset", "medium",
-        "-crf", "28",
+        "-crf", "18",
         "-an",          // no audio — video wallpaper never plays audio
         "-y",
         tmpPath
