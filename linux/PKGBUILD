@@ -1,0 +1,28 @@
+# Maintainer: bitbyte08 <me@bitworkspace.kr>
+pkgname=ilko
+pkgver=1.0.1
+pkgrel=1
+pkgdesc="Network-based automatic wallpaper switcher for KDE Plasma with video wallpaper support"
+arch=('x86_64')
+url="https://github.com/bssm-oss/ilko"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-multimedia' 'qt6-multimedia-ffmpeg' 'qt6-multimedia-gstreamer' 'plasma-workspace' 'hicolor-icon-theme' 'kirigami')
+makedepends=('cmake' 'ninja' 'extra-cmake-modules')
+
+build() {
+    cd "${BASH_SOURCE%/*}"
+    rm -rf build
+    mkdir -p build
+    cd build
+    cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+    ninja
+}
+
+package() {
+    cd "${BASH_SOURCE%/*}/build"
+    DESTDIR="$pkgdir" ninja install
+
+    install -Dm644 /dev/stdin "${pkgdir}/etc/environment.d/ilko.conf" <<'EOF'
+QML_XHR_ALLOW_FILE_READ=1
+EOF
+}

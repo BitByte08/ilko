@@ -67,3 +67,46 @@ jobs:
           files: windows/dist/installer/ILKO-*-windows-x64-setup.exe
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
+
+# ── Linux (Arch Linux package) ────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Sy --noconfirm cmake ninja extra-cmake-modules base-devel
+          pacman -Sy --noconfirm qt6-base qt6-multimedia qt6-multimedia-ffmpeg qt6-multimedia-gstreamer
+          pacman -Sy --noconfirm kconfig kcoreaddons ki18n plasma-workspace kirigami
+          pacman -Sy --noconfirm libva mesa ffmpeg
+
+      - name: Build package
+        working-directory: linux
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"    # strip leading 'v'
+          VERSION="${VERSION%%-*}"  # strip -alpha / -rc suffix
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          rm -rf build pkg
+          # makepkg refuses to run as root and --asroot was removed.
+          # Create an unprivileged build user; all deps are already
+          # installed by the previous step so -s (sync) is not needed.
+          useradd -m builder
+          chown -R builder:builder .
+          BUILDDIR=$(pwd)
+          su builder -c "cd $BUILDDIR && makepkg -f --noconfirm"
+
+      - name: Get package filename
+        id: pkgfile
+        working-directory: linux
+        run: |
+          echo "filename=$(ls ilko-*.pkg.tar.zst | head -1)" >> $GITHUB_OUTPUT
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: linux/${{ steps.pkgfile.outputs.filename }}
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
