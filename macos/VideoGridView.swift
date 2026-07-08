@@ -92,6 +92,8 @@ struct VideoThumbnailButton: View {
         .task(id: "\(video.thumbnailPath)-\(retryAttempt)") {
             timedOut = false
             guard video.loadThumbnail() == nil else { return }
+            // 타일이 실제로 보일 때만 해당 영상 1개의 썸네일을 레이지 생성한다.
+            viewModel.ensureThumbnail(for: video)
             try? await Task.sleep(nanoseconds: UInt64(thumbnailTimeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
             if video.loadThumbnail() == nil {

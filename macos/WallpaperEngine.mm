@@ -674,25 +674,51 @@ static NSString *folderPath = nil;
       stringByAppendingPathExtension:@"png"];
   NSString *thumbPath =
       [thumbnailPath stringByAppendingPathComponent:thumbName];
-  NSURL *thumbURL = [NSURL fileURLWithPath:thumbPath];
+
+  // Whole-folder path keeps its placeholder-on-failure behavior so tiles never
+  // stay on an infinite spinner. The per-file API deliberately does NOT do this
+  // (see -generateThumbnailForVideoPath:...), so it delegates to the shared core
+  // and decides for itself.
+  BOOL ok = [self extractThumbnailFromAsset:asset
+                          toDestinationPath:thumbPath
+                                      label:filename];
+  if (!ok) {
+    [self writeFallbackThumbnailForFilename:filename
+                               thumbnailPath:thumbnailPath];
+  }
+}
+
+// Core frame-extraction shared by the whole-folder path and the per-file API.
+// Reads frames from `asset` and, on success, writes a PNG to the EXPLICIT
+// destination file `destPath`, posts `ThumbnailSaved` for that path, and
+// returns YES. On any failure returns NO WITHOUT writing any placeholder — the
+// caller decides whether a placeholder is appropriate. `label` is used only for
+// logging.
+//
+// This method performs blocking/synchronous AVFoundation calls on purpose (it
+// is expected to run on a background queue); the caller is responsible for
+// bounding how long it waits for this to return. Seek strategy: clip midpoint
+// first (best representative frame), then t=0, then ~1s in, since some 4K H.264
+// files fail to decode at an arbitrary midpoint on certain machines but succeed
+// near a keyframe.
+- (BOOL)extractThumbnailFromAsset:(AVAsset *)asset
+                toDestinationPath:(NSString *)destPath
+                            label:(NSString *)label {
+  NSURL *thumbURL = [NSURL fileURLWithPath:destPath];
 
   NSArray<AVAssetTrack *> *videoTracks =
       [asset tracksWithMediaType:AVMediaTypeVideo];
   if (videoTracks.count == 0) {
-    NSLog(@"No video track for %@", filename);
-    [self writeFallbackThumbnailForFilename:filename
-                               thumbnailPath:thumbnailPath];
-    return;
+    NSLog(@"No video track for %@", label);
+    return NO;
   }
 
   CMTime duration = asset.duration;
   Float64 durationSeconds = CMTimeGetSeconds(duration);
   if (!CMTIME_IS_VALID(duration) || isnan(durationSeconds) ||
       durationSeconds <= 0) {
-    NSLog(@"Invalid duration for %@", filename);
-    [self writeFallbackThumbnailForFilename:filename
-                               thumbnailPath:thumbnailPath];
-    return;
+    NSLog(@"Invalid duration for %@", label);
+    return NO;
   }
 
   AVAssetImageGenerator *generator =
@@ -732,15 +758,12 @@ static NSString *folderPath = nil;
       break;
     }
     NSLog(@"Thumbnail seek attempt at %.2fs failed for %@: %@",
-          secondsValue.doubleValue, filename, genError.localizedDescription);
+          secondsValue.doubleValue, label, genError.localizedDescription);
   }
 
   if (resultImage == NULL) {
-    NSLog(@"Thumbnail generation failed for %@ after all seek attempts",
-          filename);
-    [self writeFallbackThumbnailForFilename:filename
-                               thumbnailPath:thumbnailPath];
-    return;
+    NSLog(@"Thumbnail generation failed for %@ after all seek attempts", label);
+    return NO;
   }
 
   CGImageDestinationRef dest = CGImageDestinationCreateWithURL(
@@ -755,14 +778,128 @@ static NSString *folderPath = nil;
   CGImageRelease(resultImage);
 
   if (!wrote) {
-    NSLog(@"Failed to write PNG thumbnail: %@", thumbName);
-    [self writeFallbackThumbnailForFilename:filename
-                               thumbnailPath:thumbnailPath];
+    NSLog(@"Failed to write PNG thumbnail: %@", destPath);
+    return NO;
+  }
+
+  NSLog(@"Saved PNG thumbnail: %@", destPath);
+  [self postThumbnailSavedNotificationForPath:destPath];
+  return YES;
+}
+
+// Per-file, lazy thumbnail generation used by the cloud-drive grid path. See
+// the header for the full contract. `readPath` is always a readable LOCAL path
+// (the Swift caller has already materialized any cloud/dataless file to a temp
+// file). This method is independent of the `_generatingThumbImages` latch used
+// by the whole-folder path, so a folder batch in flight never blocks it and it
+// never blocks a batch.
+- (void)generateThumbnailForVideoPath:(NSString *)readPath
+                    thumbnailFilePath:(NSString *)thumbnailFilePath
+                           completion:(void (^)(BOOL ok))completion {
+  // Guarantee `completion` fires exactly once, on the main queue.
+  __block BOOL completionFired = NO;
+  void (^finish)(BOOL) = ^(BOOL ok) {
+    @synchronized(self) {
+      if (completionFired)
+        return;
+      completionFired = YES;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (completion)
+        completion(ok);
+    });
+  };
+
+  NSFileManager *fileManager = [NSFileManager defaultManager];
+
+  // Already cached on disk -> immediate success, no work.
+  if ([fileManager fileExistsAtPath:thumbnailFilePath]) {
+    finish(YES);
     return;
   }
 
-  NSLog(@"Saved PNG thumbnail: %@", thumbName);
-  [self postThumbnailSavedNotificationForPath:thumbPath];
+  dispatch_async(_thumbnailQueue, ^{
+    @autoreleasepool {
+      if (![[NSFileManager defaultManager] fileExistsAtPath:readPath]) {
+        NSLog(@"Per-file thumbnail: source not found: %@", readPath);
+        finish(NO);
+        return;
+      }
+
+      // Ensure the destination directory exists so the PNG write can succeed.
+      NSString *destDir =
+          [thumbnailFilePath stringByDeletingLastPathComponent];
+      if (destDir.length > 0 &&
+          ![[NSFileManager defaultManager] fileExistsAtPath:destDir]) {
+        [[NSFileManager defaultManager] createDirectoryAtPath:destDir
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:nil];
+      }
+
+      NSURL *videoURL = [NSURL fileURLWithPath:readPath];
+      AVAsset *asset = [AVAsset assetWithURL:videoURL];
+      NSString *label = readPath.lastPathComponent;
+
+      // Run the synchronous extraction on a background utility queue and await
+      // it with a per-file timeout so a single hung decode can never wedge the
+      // serial thumbnail queue. `raceLock`/`settled` ensure the worker and the
+      // timeout path never both count this file.
+      dispatch_semaphore_t doneSem = dispatch_semaphore_create(0);
+      NSObject *raceLock = [NSObject new];
+      __block BOOL settled = NO;
+      __block BOOL extractOK = NO;
+
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        @autoreleasepool {
+          BOOL ok = [self extractThumbnailFromAsset:asset
+                                  toDestinationPath:thumbnailFilePath
+                                              label:label];
+          @synchronized(raceLock) {
+            if (!settled) {
+              settled = YES;
+              extractOK = ok;
+              dispatch_semaphore_signal(doneSem);
+            }
+          }
+        }
+      });
+
+      // readPath is always local, so 15s is a generous bound.
+      dispatch_semaphore_wait(
+          doneSem,
+          dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)));
+
+      BOOL timedOut = NO;
+      BOOL ok = NO;
+      @synchronized(raceLock) {
+        if (!settled) {
+          settled = YES;
+          timedOut = YES;
+        } else {
+          ok = extractOK;
+        }
+      }
+
+      if (timedOut) {
+        // CRITICAL: do NOT write a placeholder PNG here — leaving one at
+        // thumbnailFilePath would make future retries get skipped. Just fail so
+        // the caller can retry later.
+        NSLog(@"Per-file thumbnail TIMED OUT (>15s) for %@ - reporting failure "
+              @"(no placeholder written)",
+              label);
+        finish(NO);
+        return;
+      }
+
+      if (!ok) {
+        NSLog(@"Per-file thumbnail extraction failed for %@ (no placeholder "
+              @"written)",
+              label);
+      }
+      finish(ok);
+    }
+  });
 }
 
 // Writes a simple dark-gray placeholder PNG so a tile never shows an

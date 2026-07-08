@@ -63,6 +63,7 @@
 		B100000CFFFF00000000BB0C /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000BFFFF00000000BB0B /* VisualEffectView.swift */; };
 		B100000EFFFF00000000BB0E /* LanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000DFFFF00000000BB0D /* LanguageManager.swift */; };
 		B1000010FFFF00000000BB10 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000FFFFF00000000BB0F /* ThumbnailCache.swift */; };
+		B1000010FFFF00000000CF02 /* CloudFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000FFFFF00000000CF01 /* CloudFile.swift */; };
 		B1000012FFFF00000000BB12 /* WallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */; };
 		B1000014FFFF00000000BB14 /* VideoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000013FFFF00000000BB13 /* VideoGridView.swift */; };
 		B1000016FFFF00000000BB16 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000015FFFF00000000BB15 /* SettingsView.swift */; };
@@ -289,6 +290,7 @@
 		B100000BFFFF00000000BB0B /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = SOURCE_ROOT; };
 		B100000DFFFF00000000BB0D /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = SOURCE_ROOT; };
 		B100000FFFFF00000000BB0F /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = SOURCE_ROOT; };
+		B100000FFFFF00000000CF01 /* CloudFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFile.swift; sourceTree = SOURCE_ROOT; };
 		B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperViewModel.swift; sourceTree = SOURCE_ROOT; };
 		B1000013FFFF00000000BB13 /* VideoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoGridView.swift; sourceTree = SOURCE_ROOT; };
 		B1000015FFFF00000000BB15 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -382,6 +384,7 @@
 				B100000BFFFF00000000BB0B /* VisualEffectView.swift */,
 				B100000DFFFF00000000BB0D /* LanguageManager.swift */,
 				B100000FFFFF00000000BB0F /* ThumbnailCache.swift */,
+				B100000FFFFF00000000CF01 /* CloudFile.swift */,
 				B1000011FFFF00000000BB11 /* WallpaperViewModel.swift */,
 				B1000013FFFF00000000BB13 /* VideoGridView.swift */,
 				B1000015FFFF00000000BB15 /* SettingsView.swift */,
@@ -791,6 +794,7 @@
 				B100000CFFFF00000000BB0C /* VisualEffectView.swift in Sources */,
 				B100000EFFFF00000000BB0E /* LanguageManager.swift in Sources */,
 				B1000010FFFF00000000BB10 /* ThumbnailCache.swift in Sources */,
+				B1000010FFFF00000000CF02 /* CloudFile.swift in Sources */,
 				B1000012FFFF00000000BB12 /* WallpaperViewModel.swift in Sources */,
 				B1000014FFFF00000000BB14 /* VideoGridView.swift in Sources */,
 				B1000016FFFF00000000BB16 /* SettingsView.swift in Sources */,

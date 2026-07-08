@@ -58,6 +58,21 @@
 - (void)generateThumbnailsForFolder:(NSString *)folderPath
                      withCompletion:(void (^)(void))completion;
 
+// Generate a thumbnail for the video at `readPath` (a readable LOCAL path — the
+// caller has already materialized any cloud file to a local temp) and write the
+// PNG to the exact destination `thumbnailFilePath`. Runs on the serial thumbnail
+// queue with a per-file timeout.
+//   - If `thumbnailFilePath` already exists on disk -> completion(YES) immediately.
+//   - On successful extraction -> writes PNG to thumbnailFilePath, posts the
+//     "ThumbnailSaved" notification (userInfo {@"path": thumbnailFilePath}) on the
+//     main queue, then completion(YES).
+//   - On genuine failure/timeout -> completion(NO) and DOES NOT write any placeholder
+//     PNG to thumbnailFilePath (so the caller can retry later). Log the reason.
+// `completion` is always called exactly once, on the main queue.
+- (void)generateThumbnailForVideoPath:(NSString *)readPath
+                    thumbnailFilePath:(NSString *)thumbnailFilePath
+                           completion:(void (^)(BOOL ok))completion;
+
 - (void)generateStaticWallpapersForFolder:(NSString *)folderPath
                            withCompletion:(void (^)(void))completion;
 

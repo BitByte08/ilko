@@ -61,9 +61,11 @@ class ThumbnailCache: ObservableObject {
         lastUpdate = Date()
     }
 
-    /// 재시도 지원: 특정 경로의 캐시 항목만 무효화하고 UI 재조회(lastUpdate)를 트리거한다.
+    /// 재시도 지원: 인메모리 캐시 + 디스크 PNG(실패/placeholder 포함)를 함께 제거해
+    /// 재생성이 skip되지 않게 한 뒤 UI 재조회(lastUpdate)를 트리거한다.
     func forceRefresh(path: String) {
         cache.removeObject(forKey: path as NSString)
+        try? FileManager.default.removeItem(atPath: path)
         lastUpdate = Date()
     }
 }
