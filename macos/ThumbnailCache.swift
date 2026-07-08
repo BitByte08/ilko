@@ -60,4 +60,10 @@ class ThumbnailCache: ObservableObject {
         cache.removeAllObjects()
         lastUpdate = Date()
     }
+
+    /// 재시도 지원: 특정 경로의 캐시 항목만 무효화하고 UI 재조회(lastUpdate)를 트리거한다.
+    func forceRefresh(path: String) {
+        cache.removeObject(forKey: path as NSString)
+        lastUpdate = Date()
+    }
 }

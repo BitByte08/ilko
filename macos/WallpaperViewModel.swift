@@ -111,6 +111,15 @@ class WallpaperViewModel: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// 썸네일 생성 실패(무한 스피너) 타일의 재시도 진입점.
+    /// 지정한 경로가 있으면 해당 썸네일 캐시 항목을 무효화한 뒤 엔진에 재생성을 요청한다.
+    func regenerateThumbnails(for path: String? = nil) {
+        if let path {
+            ThumbnailCache.shared.forceRefresh(path: path)
+        }
+        engine.generateThumbnails()
+    }
+
     func startWallpaper(video: VideoItem) {
         let displays = NSScreen.screens.compactMap {
             $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
