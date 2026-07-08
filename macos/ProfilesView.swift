@@ -210,10 +210,17 @@ struct ProfileEditorView: View {
     }
 
     private func applySelectedURL(_ url: URL) {
+        // 클라우드/온라인 전용 소스는 로컬로 복사하지 않는다(용량). 원본을 그대로 참조하고
+        // 썸네일만 레이지 생성한다. 로컬 소스만 ilko 디렉터리로 복사한다.
+        if CloudFile.needsMaterialization(url) {
+            profile.wallpaperPath = url.path
+            return
+        }
         do {
             let dest = try ProfileManager.importWallpaper(from: url)
             profile.wallpaperPath = dest.path
         } catch {
+            NSLog("applySelectedURL: importWallpaper failed for \(url.path): \(error)")
             profile.wallpaperPath = url.path
         }
     }

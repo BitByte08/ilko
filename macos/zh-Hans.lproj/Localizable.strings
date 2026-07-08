@@ -15,6 +15,7 @@
 "generating" = "生成中...";
 "video_thumbnail" = "视频缩略图";
 "retry" = "重试";
+"cloud_folder_notice" = "云端文件夹 — 仅在本地缓存缩略图。首次生成/播放时可能因从云盘下载而稍慢。";
 
 // MARK: - 设置项
 "wallpaper_folder" = "壁纸文件夹";

@@ -9,8 +9,30 @@ struct VideoGridView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 250, maximum: 250), spacing: 2)]
 
+    // 폴더가 클라우드(예: Google Drive /Library/CloudStorage/)로 감지되면 안내를 띄운다.
+    private var isCloudFolder: Bool {
+        !viewModel.folderPath.isEmpty
+            && CloudFile.needsMaterialization(URL(fileURLWithPath: viewModel.folderPath))
+    }
+
+    private var cloudFolderBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "icloud")
+                .foregroundStyle(.secondary)
+            Text(L.cloudFolderNotice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+    }
+
     var body: some View {
         ScrollView {
+            if isCloudFolder {
+                cloudFolderBanner
+            }
             if videos.isEmpty {
                 Button {
                     let panel = NSOpenPanel()
@@ -92,6 +114,8 @@ struct VideoThumbnailButton: View {
         .task(id: "\(video.thumbnailPath)-\(retryAttempt)") {
             timedOut = false
             guard video.loadThumbnail() == nil else { return }
+            // 타일이 실제로 보일 때만 해당 영상 1개의 썸네일을 레이지 생성한다.
+            viewModel.ensureThumbnail(for: video)
             try? await Task.sleep(nanoseconds: UInt64(thumbnailTimeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
             if video.loadThumbnail() == nil {

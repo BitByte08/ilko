@@ -46,6 +46,7 @@ enum L {
     static let selectWallpaperFolder = "📁"
     static let generating = "생성 중..."
     static let retry = "재시도"
+    static let cloudFolderNotice = "클라우드 폴더 — 썸네일만 로컬에 캐시됩니다. 첫 생성·재생 시 드라이브에서 다운로드하느라 잠시 느릴 수 있어요."
     static let settings = "설정"
     static let wallpaperFolder = "월페이퍼 폴더"
     static let selectFolderEmoji = "📁"

@@ -15,6 +15,7 @@
 "generating" = "Generating...";
 "video_thumbnail" = "Video thumbnail";
 "retry" = "Retry";
+"cloud_folder_notice" = "Cloud folder — only thumbnails are cached locally. First generation/playback may be slow while files download from the drive.";
 
 // MARK: - Settings
 "wallpaper_folder" = "Wallpaper Folder";
