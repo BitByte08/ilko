@@ -36,7 +36,7 @@ struct VideoGridView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(videos) { video in
-                        VideoThumbnailButton(video: video) {
+                        VideoThumbnailButton(video: video, viewModel: viewModel) {
                             onVideoSelect(video)
                         }
                         .id(video.id)
@@ -52,8 +52,15 @@ struct VideoGridView: View {
 // MARK: - Video Thumbnail Button
 struct VideoThumbnailButton: View {
     let video: VideoItem
+    let viewModel: WallpaperViewModel
     let action: () -> Void
     @ObservedObject private var cache = ThumbnailCache.shared
+
+    // 썸네일 생성이 이 시간(초) 안에 끝나지 않으면 스피너 대신 재시도/폴백 UI를 보여준다.
+    private let thumbnailTimeout: TimeInterval = 20
+    @State private var timedOut = false
+    // 재시도 버튼을 누르면 값을 증가시켜 .task(id:)를 새로 시작(타임아웃 재측정)시킨다.
+    @State private var retryAttempt = 0
 
     var body: some View {
         Button(action: action) {
@@ -66,19 +73,10 @@ struct VideoThumbnailButton: View {
                         .aspectRatio(16 / 9, contentMode: .fill)
                         .frame(height: 140)
                         .clipped()
+                } else if timedOut {
+                    thumbnailFallbackView
                 } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 140)
-                        .overlay {
-                            VStack(spacing: 4) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                Text(L.generating)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
+                    thumbnailGeneratingView
                 }
 
                 if let quality = video.quality, !quality.isEmpty {
@@ -91,6 +89,60 @@ struct VideoThumbnailButton: View {
         .buttonStyle(.plain)
         .padding(2)
         .help(video.filename)
+        .task(id: "\(video.thumbnailPath)-\(retryAttempt)") {
+            timedOut = false
+            guard video.loadThumbnail() == nil else { return }
+            try? await Task.sleep(nanoseconds: UInt64(thumbnailTimeout * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            if video.loadThumbnail() == nil {
+                timedOut = true
+            }
+        }
+    }
+
+    private var thumbnailGeneratingView: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(height: 140)
+            .overlay {
+                VStack(spacing: 4) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text(L.generating)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+    }
+
+    private var thumbnailFallbackView: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(height: 140)
+            .overlay {
+                VStack(spacing: 6) {
+                    Image(systemName: "film")
+                        .font(.system(size: 26))
+                        .foregroundColor(.secondary)
+                    Text(video.filename)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 10)
+
+                    Button {
+                        // 미리보기 재생성 재시도: 캐시 무효화 후 엔진에 재생성 요청, 타이머도 다시 시작.
+                        viewModel.regenerateThumbnails(for: video.thumbnailPath)
+                        retryAttempt += 1
+                    } label: {
+                        Label(L.retry, systemImage: "arrow.clockwise")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
     }
 }
 

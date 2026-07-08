@@ -573,15 +573,23 @@ static NSString *folderPath = nil;
   NSInteger totalCount = filesToProcess.count;
 
   for (NSString *filename in filesToProcess) {
+    // Each file is dispatched onto the SERIAL _thumbnailQueue. The actual
+    // frame extraction happens synchronously (copyCGImageAtTime:) inside
+    // -extractAndSaveThumbnailForAsset:filename:thumbnailPath:, so the serial
+    // queue genuinely processes one file's decode at a time instead of every
+    // generator racing concurrently, which is what starved VideoToolbox
+    // decode sessions on some machines (some tiles succeeded, some silently
+    // never called back). That synchronous work is run on a background
+    // utility queue and awaited here with a hard 15s timeout, so a single
+    // hung decode can never block this queue forever, and
+    // _generatingThumbImages can never get stuck at YES.
     dispatch_async(_thumbnailQueue, ^{
       @autoreleasepool {
         NSString *filePath =
             [folderPath stringByAppendingPathComponent:filename];
         NSURL *videoURL = [NSURL fileURLWithPath:filePath];
 
-        if (![[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
-          NSLog(@"Video not found: %@", filePath);
-
+        void (^finishFile)(void) = ^{
           @synchronized(self) {
             completedCount++;
             if (completedCount >= totalCount) {
@@ -591,79 +599,110 @@ static NSString *folderPath = nil;
               }
             }
           }
+        };
+
+        if (![[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
+          NSLog(@"Video not found: %@", filePath);
+          finishFile();
           return;
         }
 
         AVAsset *asset = [AVAsset assetWithURL:videoURL];
 
-        [asset loadValuesAsynchronouslyForKeys:@[ @"tracks", @"duration" ]
-                             completionHandler:^{
-                               [self processThumbnailForAsset:asset
-                                                     filename:filename
-                                                     videoURL:videoURL
-                                               completedCount:&completedCount
-                                                   totalCount:totalCount
-                                                thumbnailPath:thumbnailCachePath
-                                                   completion:completion];
-                             }];
+        // `raceLock`/`settled` guard against the timeout path and the actual
+        // worker both trying to finish/count this file: whichever gets there
+        // first wins, the other is a no-op.
+        dispatch_semaphore_t doneSem = dispatch_semaphore_create(0);
+        NSObject *raceLock = [NSObject new];
+        __block BOOL settled = NO;
+
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+          @autoreleasepool {
+            [self extractAndSaveThumbnailForAsset:asset
+                                          filename:filename
+                                     thumbnailPath:thumbnailCachePath];
+            @synchronized(raceLock) {
+              if (!settled) {
+                settled = YES;
+                dispatch_semaphore_signal(doneSem);
+              }
+            }
+          }
+        });
+
+        dispatch_semaphore_wait(
+            doneSem,
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)));
+
+        BOOL timedOut = NO;
+        @synchronized(raceLock) {
+          if (!settled) {
+            settled = YES;
+            timedOut = YES;
+          }
+        }
+
+        if (timedOut) {
+          NSLog(@"Thumbnail generation TIMED OUT (>15s) for %@ - writing "
+                @"fallback placeholder",
+                filename);
+          [self writeFallbackThumbnailForFilename:filename
+                                     thumbnailPath:thumbnailCachePath];
+        }
+
+        finishFile();
       }
     });
   }
 }
-- (void)processThumbnailForAsset:(AVAsset *)asset
-                        filename:(NSString *)filename
-                        videoURL:(NSURL *)videoURL
-                  completedCount:(NSInteger *)completedCount
-                      totalCount:(NSInteger)totalCount
-                   thumbnailPath:(NSString *)thumbnailPath
-                      completion:(void (^)(void))completion {
 
-  NSError *error = nil;
+// Loads video track/duration metadata and extracts a representative frame
+// for `asset`, writing it as a PNG at <thumbnailPath>/<filename base>.png.
+// Tries the clip midpoint first, then falls back to t=0 and t=1s if the seek
+// fails - some H.264 4K files fail to decode at an arbitrary midpoint on
+// certain machines but succeed near a keyframe. Posts `ThumbnailSaved` on
+// success. If every attempt fails, writes a placeholder PNG instead of
+// leaving the tile stuck on an infinite spinner.
+//
+// This method performs blocking/synchronous AVFoundation calls on purpose
+// (it is expected to run on a background queue); the caller is responsible
+// for bounding how long it waits for this to return.
+- (void)extractAndSaveThumbnailForAsset:(AVAsset *)asset
+                                filename:(NSString *)filename
+                           thumbnailPath:(NSString *)thumbnailPath {
+  NSString *thumbName = [[filename stringByDeletingPathExtension]
+      stringByAppendingPathExtension:@"png"];
+  NSString *thumbPath =
+      [thumbnailPath stringByAppendingPathComponent:thumbName];
+  NSURL *thumbURL = [NSURL fileURLWithPath:thumbPath];
 
-  AVKeyValueStatus trackStatus = [asset statusOfValueForKey:@"tracks"
-                                                      error:&error];
-  AVKeyValueStatus durationStatus = [asset statusOfValueForKey:@"duration"
-                                                         error:&error];
+  NSArray<AVAssetTrack *> *videoTracks =
+      [asset tracksWithMediaType:AVMediaTypeVideo];
+  if (videoTracks.count == 0) {
+    NSLog(@"No video track for %@", filename);
+    [self writeFallbackThumbnailForFilename:filename
+                               thumbnailPath:thumbnailPath];
+    return;
+  }
 
-  if (trackStatus != AVKeyValueStatusLoaded ||
-      durationStatus != AVKeyValueStatusLoaded) {
-    NSLog(@"Failed to load asset metadata for %@: %@", filename,
-          error.localizedDescription);
-
-    @synchronized(self) {
-      (*completedCount)++;
-      if (*completedCount >= totalCount) {
-        self->_generatingThumbImages = NO;
-        if (completion) {
-          dispatch_async(dispatch_get_main_queue(), completion);
-        }
-      }
-    }
+  CMTime duration = asset.duration;
+  Float64 durationSeconds = CMTimeGetSeconds(duration);
+  if (!CMTIME_IS_VALID(duration) || isnan(durationSeconds) ||
+      durationSeconds <= 0) {
+    NSLog(@"Invalid duration for %@", filename);
+    [self writeFallbackThumbnailForFilename:filename
+                               thumbnailPath:thumbnailPath];
     return;
   }
 
   AVAssetImageGenerator *generator =
       [[AVAssetImageGenerator alloc] initWithAsset:asset];
   generator.appliesPreferredTrackTransform = YES;
+  // Allow the generator to snap to the closest available keyframe instead of
+  // failing outright when it can't decode the exact requested time.
+  generator.requestedTimeToleranceBefore = kCMTimePositiveInfinity;
+  generator.requestedTimeToleranceAfter = kCMTimePositiveInfinity;
 
-  NSArray<AVAssetTrack *> *videoTracks =
-      [asset tracksWithMediaType:AVMediaTypeVideo];
-  if (videoTracks.count == 0) {
-    NSLog(@"No video track for %@", filename);
-
-    @synchronized(self) {
-      (*completedCount)++;
-      if (*completedCount >= totalCount) {
-        self->_generatingThumbImages = NO;
-        if (completion) {
-          dispatch_async(dispatch_get_main_queue(), completion);
-        }
-      }
-    }
-    return;
-  }
-
-  // Configure render size properly
   AVAssetTrack *track = videoTracks.firstObject;
   CGSize naturalSize = track.naturalSize;
   CGAffineTransform transform = track.preferredTransform;
@@ -672,58 +711,125 @@ static NSString *folderPath = nil;
       CGSizeMake(fabs(renderSize.width * THUMBNAIL_QUALITY_FACTOR),
                  fabs(renderSize.height * THUMBNAIL_QUALITY_FACTOR));
 
-  Float64 midpoint = CMTimeGetSeconds(asset.duration) / 2.0;
-  CMTime targetTime = CMTimeMakeWithSeconds(midpoint, asset.duration.timescale);
+  // Multi-step fallback seek times: midpoint first (best representative
+  // frame), then the very start, then ~1s in, in case the midpoint lands on
+  // a spot the decoder chokes on for this particular file.
+  NSArray<NSNumber *> *candidateSeconds = @[
+    @(durationSeconds / 2.0), @(0.0), @(MIN(1.0, durationSeconds))
+  ];
 
+  CGImageRef resultImage = NULL;
+  for (NSNumber *secondsValue in candidateSeconds) {
+    CMTime targetTime =
+        CMTimeMakeWithSeconds(secondsValue.doubleValue, duration.timescale);
+    NSError *genError = nil;
+    CMTime actualTime = kCMTimeZero;
+    CGImageRef image = [generator copyCGImageAtTime:targetTime
+                                          actualTime:&actualTime
+                                               error:&genError];
+    if (image != NULL) {
+      resultImage = image;
+      break;
+    }
+    NSLog(@"Thumbnail seek attempt at %.2fs failed for %@: %@",
+          secondsValue.doubleValue, filename, genError.localizedDescription);
+  }
+
+  if (resultImage == NULL) {
+    NSLog(@"Thumbnail generation failed for %@ after all seek attempts",
+          filename);
+    [self writeFallbackThumbnailForFilename:filename
+                               thumbnailPath:thumbnailPath];
+    return;
+  }
+
+  CGImageDestinationRef dest = CGImageDestinationCreateWithURL(
+      (__bridge CFURLRef)thumbURL, (__bridge CFStringRef)UTTypePNG.identifier,
+      1, NULL);
+  BOOL wrote = NO;
+  if (dest) {
+    CGImageDestinationAddImage(dest, resultImage, NULL);
+    wrote = CGImageDestinationFinalize(dest);
+    CFRelease(dest);
+  }
+  CGImageRelease(resultImage);
+
+  if (!wrote) {
+    NSLog(@"Failed to write PNG thumbnail: %@", thumbName);
+    [self writeFallbackThumbnailForFilename:filename
+                               thumbnailPath:thumbnailPath];
+    return;
+  }
+
+  NSLog(@"Saved PNG thumbnail: %@", thumbName);
+  [self postThumbnailSavedNotificationForPath:thumbPath];
+}
+
+// Writes a simple dark-gray placeholder PNG so a tile never shows an
+// infinite spinner when real frame extraction fully fails. Posts the same
+// `ThumbnailSaved` notification as a real thumbnail so the tile refreshes;
+// the real failure reason was already NSLog'd by the caller for debugging.
+- (void)writeFallbackThumbnailForFilename:(NSString *)filename
+                             thumbnailPath:(NSString *)thumbnailPath {
   NSString *thumbName = [[filename stringByDeletingPathExtension]
       stringByAppendingPathExtension:@"png"];
   NSString *thumbPath =
       [thumbnailPath stringByAppendingPathComponent:thumbName];
   NSURL *thumbURL = [NSURL fileURLWithPath:thumbPath];
 
-  [generator
-      generateCGImagesAsynchronouslyForTimes:@[ [NSValue
-                                                 valueWithCMTime:targetTime] ]
-                           completionHandler:^(
-                               CMTime requestedTime, CGImageRef cgImage,
-                               CMTime actualTime,
-                               AVAssetImageGeneratorResult result,
-                               NSError *imgError) {
-                             if (result == AVAssetImageGeneratorSucceeded &&
-                                 cgImage != NULL) {
-                               CGImageRef copy = CGImageCreateCopy(cgImage);
+  size_t width = 320;
+  size_t height = 180;
+  CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+  CGContextRef context =
+      CGBitmapContextCreate(NULL, width, height, 8, 0, colorSpace,
+                            kCGImageAlphaPremultipliedLast);
+  CGColorSpaceRelease(colorSpace);
 
-                               CGImageDestinationRef dest =
-                                   CGImageDestinationCreateWithURL(
-                                       (__bridge CFURLRef)thumbURL,
-                                       (__bridge CFStringRef)
-                                           UTTypePNG.identifier,
-                                       1, NULL);
+  if (!context) {
+    NSLog(@"Failed to create fallback thumbnail context for %@", filename);
+    return;
+  }
 
-                               if (dest) {
-                                 CGImageDestinationAddImage(dest, copy, NULL);
-                                 CGImageDestinationFinalize(dest);
-                                 CFRelease(dest);
-                               }
+  CGContextSetRGBFillColor(context, 0.2, 0.2, 0.2, 1.0);
+  CGContextFillRect(context, CGRectMake(0, 0, width, height));
 
-                               CGImageRelease(copy);
+  CGImageRef placeholder = CGBitmapContextCreateImage(context);
+  CGContextRelease(context);
 
-                             } else {
-                               NSLog(@"Thumbnail generation failed for %@: %@",
-                                     filename, imgError.localizedDescription);
-                             }
+  if (!placeholder) {
+    NSLog(@"Failed to render fallback thumbnail image for %@", filename);
+    return;
+  }
 
-                             @synchronized(self) {
-                               (*completedCount)++;
-                               if (*completedCount >= totalCount) {
-                                 self->_generatingThumbImages = NO;
-                                 if (completion) {
-                                   dispatch_async(dispatch_get_main_queue(),
-                                                  completion);
-                                 }
-                               }
-                             }
-                           }];
+  CGImageDestinationRef dest = CGImageDestinationCreateWithURL(
+      (__bridge CFURLRef)thumbURL, (__bridge CFStringRef)UTTypePNG.identifier,
+      1, NULL);
+  BOOL wrote = NO;
+  if (dest) {
+    CGImageDestinationAddImage(dest, placeholder, NULL);
+    wrote = CGImageDestinationFinalize(dest);
+    CFRelease(dest);
+  }
+  CGImageRelease(placeholder);
+
+  if (wrote) {
+    NSLog(@"Saved fallback placeholder thumbnail: %@", thumbName);
+    [self postThumbnailSavedNotificationForPath:thumbPath];
+  } else {
+    NSLog(@"Failed to write fallback placeholder thumbnail: %@", thumbName);
+  }
+}
+
+// Shared by both the real and fallback-placeholder success paths so tiles
+// refresh incrementally instead of waiting for the whole-batch
+// `ThumbnailsGenerated` notification.
+- (void)postThumbnailSavedNotificationForPath:(NSString *)thumbPath {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:@"ThumbnailSaved"
+                      object:nil
+                    userInfo:@{@"path" : thumbPath}];
+  });
 }
 
 - (void)saveThumbnailImage:(CGImageRef)image

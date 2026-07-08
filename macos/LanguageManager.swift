@@ -45,6 +45,7 @@ class LanguageManager: ObservableObject {
 enum L {
     static let selectWallpaperFolder = "📁"
     static let generating = "생성 중..."
+    static let retry = "재시도"
     static let settings = "설정"
     static let wallpaperFolder = "월페이퍼 폴더"
     static let selectFolderEmoji = "📁"

@@ -19,6 +19,20 @@ struct VideoItem: Identifiable {
 // 실제 스레드 안전성은 WallpaperEngine 내부 구현(dispatch queue)이 보장합니다.
 extension WallpaperEngine: @unchecked Sendable {}
 
+/// continuation을 정확히 한 번만 resume 하도록 보장하는 스레드 세이프 가드.
+/// ObjC 콜백이 끝내 오지 않아도 timeout 경로에서 안전하게 nil로 resume 할 수 있게 한다.
+nonisolated private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if claimed { return false }
+        claimed = true
+        return true
+    }
+}
+
 // MARK: - Wallpaper View Model
 // @MainActor 격리가 모든 접근을 메인 스레드로 직렬화하므로 @unchecked Sendable이 안전합니다.
 @MainActor
@@ -71,44 +85,69 @@ class WallpaperViewModel: ObservableObject, @unchecked Sendable {
             return e == "mp4" || e == "mov"
         }
 
-        // @MainActor 격리 값을 detached task 진입 전에 스냅샷
         let folderSnapshot = folderPath
         let engine = self.engine
 
-        // 진행 중인 이전 리로드 취소 후 새로 시작
+        // 1) 화질 배지 로딩을 기다리지 않고 목록을 즉시 구성하고 썸네일 생성을 바로 시작한다.
+        //    한 영상의 videoQualityBadge(AVAsset 로딩)가 지연/멈춰도 썸네일 생성이
+        //    막히지 않도록 배지 로딩과 썸네일 생성을 분리한다.
+        let items: [VideoItem] = videoFiles.map { f in
+            let full = (folderSnapshot as NSString).appendingPathComponent(f)
+            let base = (f as NSString).deletingPathExtension
+            let thumbPath =
+                (engine.thumbnailCachePath() as NSString?)?.appendingPathComponent("\(base).png") ?? ""
+            return VideoItem(filename: f, path: full, thumbnailPath: thumbPath, quality: nil)
+        }
+        self.videos = items
+        let missingCount = items.filter { $0.loadThumbnail() == nil }.count
+        if missingCount > 0 {
+            NSLog("Found \(missingCount) videos without thumbnails, generating...")
+            engine.generateThumbnails()
+        }
+
+        // 2) 화질 배지는 백그라운드에서 개별 타임아웃과 함께 점진적으로 채운다.
+        //    한 영상의 로딩이 멈춰도 다른 영상/썸네일에는 영향이 없다.
         reloadTask?.cancel()
-        reloadTask = Task.detached(priority: .userInitiated) { [weak self] in
-            var newVideos: [VideoItem] = []
-            for f in videoFiles {
+        reloadTask = Task.detached(priority: .utility) { [weak self] in
+            for item in items {
                 guard !Task.isCancelled else { return }
-                let full = (folderSnapshot as NSString).appendingPathComponent(f)
-                let base = (f as NSString).deletingPathExtension
-                let thumbPath =
-                    (engine.thumbnailCachePath() as NSString?)?.appendingPathComponent(
-                        "\(base).png") ?? ""
-                // ObjC 콜백 → async/await 변환: continuation만 캡처하므로 Sendable 안전
-                let badge: String? = await withCheckedContinuation { continuation in
-                    engine.videoQualityBadge(for: URL(fileURLWithPath: full)) { badge in
-                        continuation.resume(returning: badge)
-                    }
-                }
-                newVideos.append(VideoItem(filename: f, path: full, thumbnailPath: thumbPath, quality: badge))
-            }
-
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.videos = newVideos
-                let missingThumbnails = newVideos.filter { $0.loadThumbnail() == nil }
-                if !missingThumbnails.isEmpty {
-                    NSLog(
-                        "Found \(missingThumbnails.count) videos without thumbnails, generating..."
-                    )
-                    self.engine.generateThumbnails()
+                let badge = await WallpaperViewModel.loadQualityBadge(
+                    engine: engine, path: item.path, timeout: 4.0)
+                guard let badge, !badge.isEmpty else { continue }
+                await MainActor.run { [weak self] in
+                    guard let self,
+                        let idx = self.videos.firstIndex(where: { $0.id == item.id })
+                    else { return }
+                    self.videos[idx].quality = badge
                 }
             }
         }
+    }
+
+    /// videoQualityBadge(ObjC 콜백)를 async로 감싸되, 콜백이 끝내 오지 않아도 timeout 후
+    /// nil로 resume 되도록 보장한다 — 멈춘 AVAsset 로딩이 목록 구성 전체를 막지 못하게 한다.
+    nonisolated private static func loadQualityBadge(
+        engine: WallpaperEngine, path: String, timeout: TimeInterval
+    ) async -> String? {
+        await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+            let guardOnce = ResumeOnce()
+            engine.videoQualityBadge(for: URL(fileURLWithPath: path)) { badge in
+                if guardOnce.claim() { cont.resume(returning: badge) }
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                if guardOnce.claim() { cont.resume(returning: nil) }
+            }
+        }
+    }
+
+    /// 썸네일 생성 실패(무한 스피너) 타일의 재시도 진입점.
+    /// 지정한 경로가 있으면 해당 썸네일 캐시 항목을 무효화한 뒤 엔진에 재생성을 요청한다.
+    func regenerateThumbnails(for path: String? = nil) {
+        if let path {
+            ThumbnailCache.shared.forceRefresh(path: path)
+        }
+        engine.generateThumbnails()
     }
 
     func startWallpaper(video: VideoItem) {
