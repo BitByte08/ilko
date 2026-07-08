@@ -9,8 +9,30 @@ struct VideoGridView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 250, maximum: 250), spacing: 2)]
 
+    // 폴더가 클라우드(예: Google Drive /Library/CloudStorage/)로 감지되면 안내를 띄운다.
+    private var isCloudFolder: Bool {
+        !viewModel.folderPath.isEmpty
+            && CloudFile.needsMaterialization(URL(fileURLWithPath: viewModel.folderPath))
+    }
+
+    private var cloudFolderBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "icloud")
+                .foregroundStyle(.secondary)
+            Text(L.cloudFolderNotice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+    }
+
     var body: some View {
         ScrollView {
+            if isCloudFolder {
+                cloudFolderBanner
+            }
             if videos.isEmpty {
                 Button {
                     let panel = NSOpenPanel()
