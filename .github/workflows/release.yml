@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,21 +11,39 @@ permissions:
 jobs:
   # ── macOS DMG ────────────────────────────────────────────────────────────
   build-macos:
-    runs-on: macos-15
+    # macos-26 ships Xcode 26 by default; the project uses macOS 26 SDK APIs
+    # (.glass, default-MainActor isolation, deployment target 26.1) that the
+    # older macos-15 image (Xcode 16.4) cannot compile.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - name: Show Xcode version
+        run: xcodebuild -version
+
       - name: Build DMG
-        run: make dmg VERSION=${{ github.ref_name }}
+        # On tag pushes VERSION is the tag (e.g. v1.3.1). On workflow_dispatch
+        # the ref is a branch whose name may contain "/", which would break the
+        # DMG path, so fall back to a safe placeholder for test runs.
+        run: make dmg VERSION="${{ github.ref_type == 'tag' && github.ref_name || 'test' }}"
 
       - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/ILKO-*.dmg
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: true
+
+      - name: Upload DMG artifact (non-tag / test runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ILKO-dmg
+          path: dist/ILKO-*.dmg
+          if-no-files-found: error
 
   # ── Windows Installer (Inno Setup) ──────────────────────────────────────
   build-windows:
